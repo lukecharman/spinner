@@ -4,30 +4,39 @@ import { SpinnerDisplay } from './components/SpinnerDisplay';
 import { MemberManager } from './components/MemberManager';
 
 function App() {
-  const { state, available, pickNext, addMember, removeMember, resetCycle } = useSpinner();
+  const {
+    state, team, available, pickNext, confirmPick, skipPick,
+    addMember, removeMember, resetCycle,
+    setActiveTeam, addTeam, removeTeam, renameTeam,
+  } = useSpinner();
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>🎡 Standup Spinner</h1>
-        <p className="app-subtitle">Who's hosting today?</p>
-      </header>
-
-      <main className="app-main">
+      <div className="main-layout">
         <SpinnerDisplay
-          members={state.members}
+          members={team.members}
           onSpin={pickNext}
+          onSkip={skipPick}
+          onConfirm={confirmPick}
         />
 
-        <MemberManager
-          members={state.members}
-          cycle={state.cycle}
-          available={available}
-          onAdd={addMember}
-          onRemove={removeMember}
-          onResetCycle={resetCycle}
-        />
-      </main>
+        <div className="side-panel">
+          <MemberManager
+            members={team.members}
+            cycle={team.cycle}
+            available={available}
+            teamOrder={state.teamOrder}
+            activeTeam={state.activeTeam}
+            onAdd={addMember}
+            onRemove={removeMember}
+            onResetCycle={resetCycle}
+            onSetActiveTeam={setActiveTeam}
+            onAddTeam={addTeam}
+            onRemoveTeam={removeTeam}
+            onRenameTeam={renameTeam}
+          />
+        </div>
+      </div>
     </div>
   );
 }
