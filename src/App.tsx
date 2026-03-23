@@ -5,10 +5,15 @@ import { MemberManager } from './components/MemberManager';
 
 function App() {
   const {
-    state, team, available, pickNext, confirmPick, skipPick,
+    state, team, available, loaded, pickNext, confirmPick, skipPick,
     addMember, removeMember, resetCycle,
     setActiveTeam, addTeam, removeTeam, renameTeam,
+    broadcastSpin, remoteSpinEvent, clearRemoteSpin,
   } = useSpinner();
+
+  if (!loaded) {
+    return <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>Loading…</div>;
+  }
 
   return (
     <div className="app">
@@ -18,6 +23,9 @@ function App() {
           onSpin={pickNext}
           onSkip={skipPick}
           onConfirm={confirmPick}
+          onBroadcastSpin={broadcastSpin}
+          remoteSpinEvent={remoteSpinEvent}
+          onClearRemoteSpin={clearRemoteSpin}
         />
 
         <div className="side-panel">

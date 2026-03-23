@@ -1,16 +1,32 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { WheelOfFortune } from './WheelOfFortune';
+import { AppearDisplay } from './AppearDisplay';
+import type { SpinEvent } from '../hooks/useSpinner';
+
+export type Visualization = 'wheel' | 'appear';
+
+const VIZ_LABELS: Record<Visualization, string> = {
+  wheel: 'Wheel',
+  appear: 'Appear',
+};
 
 interface Props {
   members: string[];
   onSpin: () => string | null;
   onSkip: () => string | null;
   onConfirm: (name: string) => void;
+  onBroadcastSpin: (event: Omit<SpinEvent, 'tabId' | 'timestamp'>) => void;
+  remoteSpinEvent: SpinEvent | null;
+  onClearRemoteSpin: () => void;
 }
 
 type Phase = 'idle' | 'spinning' | 'done';
 
-export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm }: Props) {
+export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcastSpin, remoteSpinEvent, onClearRemoteSpin }: Props) {
+  const [viz, setViz] = useState<Visualization>(() => {
+    const saved = localStorage.getItem('spinner-viz');
+    return saved === 'appear' ? 'appear' : 'wheel';
+  });
   const [phase, setPhase] = useState<Phase>('idle');
   const [winner, setWinner] = useState<string | null>(null);
   const [rotation, setRotation] = useState(0);
@@ -18,6 +34,13 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm }: Props) {
   const [isDragging, setIsDragging] = useState(false);
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const baseRotation = useRef(0);
+  const vizRef = useRef(viz);
+  vizRef.current = viz;
+
+  const switchViz = useCallback((v: Visualization) => {
+    setViz(v);
+    localStorage.setItem('spinner-viz', v);
+  }, []);
 
   useEffect(() => () => { timeoutsRef.current.forEach(clearTimeout); }, []);
 
@@ -26,13 +49,8 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm }: Props) {
     timeoutsRef.current = [];
   }
 
-  /** Launch the spin animation to land on a picked winner */
-  const launchSpin = useCallback((picker: () => string | null, flickVelocity: number) => {
-    if (members.length === 0) return;
-
-    const picked = picker();
-    if (!picked) return;
-
+  /** Animate the wheel to a specific target rotation */
+  const playSpin = useCallback((targetRotation: number, picked: string, isSkip: boolean) => {
     clearTimeouts();
     setWinner(null);
 
@@ -43,6 +61,23 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm }: Props) {
     setIsDragging(false);
 
     setPhase('spinning');
+    setRotation(targetRotation);
+
+    const duration = vizRef.current === 'wheel' ? 7300 : 1000;
+    const t0 = setTimeout(() => {
+      baseRotation.current = targetRotation;
+      setPhase('done');
+      setWinner(picked);
+      if (!isSkip) {
+        onConfirm(picked);
+      }
+    }, duration);
+    timeoutsRef.current.push(t0);
+  }, [dragOffset, onConfirm]);
+
+  /** Compute target rotation for a picked winner */
+  const computeTarget = useCallback((picked: string, flickVelocity: number): number => {
+    const currentBase = baseRotation.current + dragOffset;
 
     const n = members.length;
     const sliceAngle = 360 / n;
@@ -52,51 +87,62 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm }: Props) {
     const offsetRange = sliceAngle * 0.35;
     const randomOffset = (Math.random() - 0.5) * 2 * offsetRange;
 
-    // Scale extra spins based on flick velocity
-    // Minimum 4 full spins, velocity adds more
     const velocitySpins = Math.min(Math.abs(flickVelocity) / 120, 5);
     const fullSpins = 360 * (4 + Math.floor(velocitySpins) + Math.floor(Math.random() * 2));
 
-    // Determine spin direction from flick (if velocity is meaningful)
-    // Positive velocity = clockwise drag → spin clockwise
     const direction = flickVelocity >= 0 ? 1 : -1;
 
-    // Calculate target: we need (currentBase + totalSpin) mod 360 = (360 - targetSliceCenter + randomOffset) mod 360
     const landingAngle = ((360 - targetSliceCenter + randomOffset) % 360 + 360) % 360;
     const currentMod = ((currentBase % 360) + 360) % 360;
     let neededDelta = landingAngle - currentMod;
 
-    // Adjust delta to match the flick direction
     if (direction >= 0) {
       if (neededDelta < 0) neededDelta += 360;
     } else {
       if (neededDelta > 0) neededDelta -= 360;
     }
 
-    const targetRotation = currentBase + direction * fullSpins + neededDelta;
+    return currentBase + direction * fullSpins + neededDelta;
+  }, [members, dragOffset]);
 
-    setRotation(targetRotation);
+  /** Launch the spin animation to land on a picked winner */
+  const launchSpin = useCallback((picker: () => string | null, flickVelocity: number, isSkip: boolean) => {
+    if (members.length === 0) return;
 
-    const shouldConfirm = picker === onSpin;
-    const t0 = setTimeout(() => {
-      baseRotation.current = targetRotation;
-      setPhase('done');
-      setWinner(picked);
-      if (shouldConfirm) {
-        onConfirm(picked);
-      }
-    }, 7300);
-    timeoutsRef.current.push(t0);
-  }, [members, dragOffset, onSpin, onConfirm]);
+    const picked = picker();
+    if (!picked) return;
+
+    const targetRotation = computeTarget(picked, flickVelocity);
+    onBroadcastSpin({ targetRotation, winner: picked, isSkip });
+    playSpin(targetRotation, picked, isSkip);
+  }, [members, computeTarget, playSpin, onBroadcastSpin]);
+
+  // Listen for remote spin events
+  useEffect(() => {
+    if (!remoteSpinEvent) return;
+    // Reset our base to 0-normalised so the remote target makes sense
+    const currentBase = baseRotation.current + dragOffset;
+    // Compute how far we need the wheel to travel to land at the same final angle
+    const remoteTarget = remoteSpinEvent.targetRotation;
+    const remoteFinalAngle = ((remoteTarget % 360) + 360) % 360;
+    const currentMod = ((currentBase % 360) + 360) % 360;
+    let delta = remoteFinalAngle - currentMod;
+    if (delta < 0) delta += 360;
+    // Add several full spins so it looks dramatic
+    const localTarget = currentBase + delta + 360 * 5;
+
+    playSpin(localTarget, remoteSpinEvent.winner, remoteSpinEvent.isSkip);
+    onClearRemoteSpin();
+  }, [remoteSpinEvent, dragOffset, playSpin, onClearRemoteSpin]);
 
   const spin = useCallback(() => {
     if (phase === 'spinning') return;
-    launchSpin(onSpin, 300);
+    launchSpin(onSpin, 300, false);
   }, [phase, launchSpin, onSpin]);
 
   const skip = useCallback(() => {
     if (phase === 'spinning') return;
-    launchSpin(onSkip, 300);
+    launchSpin(onSkip, 300, true);
   }, [phase, launchSpin, onSkip]);
 
   // Drag handlers passed to the wheel
@@ -113,7 +159,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm }: Props) {
   const handleDragEnd = useCallback((velocity: number) => {
     if (Math.abs(velocity) > 60) {
       // Flick! Launch the spin with the measured velocity
-      launchSpin(onSpin, velocity);
+      launchSpin(onSpin, velocity, false);
     } else {
       // Tap or gentle release — just do a normal spin if offset is tiny
       const absOffset = Math.abs(dragOffset);
@@ -124,7 +170,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm }: Props) {
 
       if (absOffset < 5) {
         // Tap — spin
-        launchSpin(onSpin, 300);
+        launchSpin(onSpin, 300, false);
       }
       // Otherwise just leave it where the user dragged it
     }
@@ -134,24 +180,49 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm }: Props) {
 
   return (
     <div className="spinner-section">
-      <h1 className="spinner-title">Standup Spinner</h1>
-      <p className="spinner-subtitle">Who's hosting today?</p>
+      <h1 className="spinner-title">The Load Balancer</h1>
+      <p className="spinner-subtitle">"Evenly distributing discomfort since 2026."</p>
 
-      <div className="stage wheel-stage">
-        <WheelOfFortune
-          size={560}
-          members={members}
-          rotation={rotation}
-          dragOffset={dragOffset}
-          isDragging={isDragging}
-          phase={phase}
-          winner={winner}
-          onSpin={spin}
-          onDragStart={handleDragStart}
-          onDragMove={handleDragMove}
-          onDragEnd={handleDragEnd}
-        />
+      <div className="viz-switcher">
+        {(Object.keys(VIZ_LABELS) as Visualization[]).map(v => (
+          <button
+            key={v}
+            className={`viz-btn ${v === viz ? 'active' : ''}`}
+            onClick={() => switchViz(v)}
+          >
+            {VIZ_LABELS[v]}
+          </button>
+        ))}
       </div>
+
+      {viz === 'wheel' && (
+        <div className="stage wheel-stage">
+          <WheelOfFortune
+            size={560}
+            members={members}
+            rotation={rotation}
+            dragOffset={dragOffset}
+            isDragging={isDragging}
+            phase={phase}
+            winner={winner}
+            onSpin={spin}
+            onDragStart={handleDragStart}
+            onDragMove={handleDragMove}
+            onDragEnd={handleDragEnd}
+          />
+        </div>
+      )}
+
+      {viz === 'appear' && (
+        <div className="stage appear-stage">
+          <AppearDisplay
+            members={members}
+            phase={phase}
+            winner={winner}
+            onTrigger={spin}
+          />
+        </div>
+      )}
 
       <div className="button-row">
         <button

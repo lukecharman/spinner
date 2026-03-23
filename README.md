@@ -1,4 +1,4 @@
-# Standup Spinner 🎡
+# The Load Balancer 🎡
 
 A "whose turn is it to host standup" randomiser for teams.
 

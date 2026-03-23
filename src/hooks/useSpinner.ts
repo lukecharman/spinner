@@ -1,6 +1,18 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { ref, onValue, set } from 'firebase/database';
+import { db } from '../firebase';
 
-const STORAGE_KEY = 'standup-spinner';
+const DB_PATH = 'spinner-state';
+const SPIN_PATH = 'spin-event';
+const TAB_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+export interface SpinEvent {
+  targetRotation: number;
+  winner: string;
+  isSkip: boolean;
+  tabId: string;
+  timestamp: number;
+}
 
 export interface TeamState {
   members: string[];
@@ -20,52 +32,91 @@ const DEFAULT_TEAM: TeamState = {
   lastPicked: null,
 };
 
-function loadState(): AppState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      // Migrate old single-team format
-      if (parsed && Array.isArray(parsed.members)) {
-        const team: TeamState = {
-          members: parsed.members,
-          cycle: Array.isArray(parsed.cycle) ? parsed.cycle : [],
-          lastPicked: typeof parsed.lastPicked === 'string' ? parsed.lastPicked : null,
-        };
-        return { teams: { 'Team 1': team }, teamOrder: ['Team 1'], activeTeam: 'Team 1' };
-      }
-      // New multi-team format
-      if (parsed && parsed.teams && parsed.teamOrder) {
-        return {
-          teams: parsed.teams,
-          teamOrder: Array.isArray(parsed.teamOrder) ? parsed.teamOrder : Object.keys(parsed.teams),
-          activeTeam: typeof parsed.activeTeam === 'string' && parsed.teams[parsed.activeTeam]
-            ? parsed.activeTeam
-            : parsed.teamOrder[0] ?? 'Team 1',
-        };
+const DEFAULT_STATE: AppState = {
+  teams: { 'Team 1': DEFAULT_TEAM },
+  teamOrder: ['Team 1'],
+  activeTeam: 'Team 1',
+};
+
+/** Validate / coerce data from Firebase into a safe AppState */
+function parseState(data: unknown): AppState | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+
+  if (d.teams && d.teamOrder) {
+    const teams = d.teams as Record<string, unknown>;
+    const teamOrder = Array.isArray(d.teamOrder) ? d.teamOrder as string[] : Object.keys(teams);
+    const parsedTeams: Record<string, TeamState> = {};
+
+    for (const [name, raw] of Object.entries(teams)) {
+      const t = raw as Record<string, unknown>;
+      parsedTeams[name] = {
+        members: Array.isArray(t.members) ? t.members : [],
+        cycle: Array.isArray(t.cycle) ? t.cycle : [],
+        lastPicked: typeof t.lastPicked === 'string' ? t.lastPicked : null,
+      };
+    }
+
+    // Firebase strips empty objects, so teams in teamOrder may be missing from data
+    for (const name of teamOrder) {
+      if (!parsedTeams[name]) {
+        parsedTeams[name] = { members: [], cycle: [], lastPicked: null };
       }
     }
-  } catch {
-    // ignore corrupt storage
+
+    const activeTeam = typeof d.activeTeam === 'string' && parsedTeams[d.activeTeam]
+      ? d.activeTeam as string
+      : teamOrder[0] ?? 'Team 1';
+
+    return { teams: parsedTeams, teamOrder, activeTeam };
   }
-  return { teams: { 'Team 1': DEFAULT_TEAM }, teamOrder: ['Team 1'], activeTeam: 'Team 1' };
+
+  // Migrate old single-team format
+  if (d.members && Array.isArray(d.members)) {
+    const team: TeamState = {
+      members: d.members as string[],
+      cycle: Array.isArray(d.cycle) ? d.cycle as string[] : [],
+      lastPicked: typeof d.lastPicked === 'string' ? d.lastPicked : null,
+    };
+    return { teams: { 'Team 1': team }, teamOrder: ['Team 1'], activeTeam: 'Team 1' };
+  }
+
+  return null;
 }
 
-function saveState(state: AppState): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function writeState(state: AppState): void {
+  set(ref(db, DB_PATH), state);
 }
 
 export function useSpinner() {
-  const [state, setState] = useState<AppState>(loadState);
+  const [state, setState] = useState<AppState>(DEFAULT_STATE);
+  const [loaded, setLoaded] = useState(false);
   const stateRef = useRef(state);
 
-  const updateState = useCallback((updater: (prev: AppState) => AppState) => {
-    setState(prev => {
-      const next = updater(prev);
-      saveState(next);
-      stateRef.current = next;
-      return next;
+  // Real-time listener — syncs Firebase → local state
+  useEffect(() => {
+    const dbRef = ref(db, DB_PATH);
+    const unsub = onValue(dbRef, (snapshot) => {
+      const data = snapshot.val();
+      const parsed = parseState(data);
+      if (parsed) {
+        setState(parsed);
+        stateRef.current = parsed;
+      } else if (!data) {
+        // First time — seed the database with defaults
+        writeState(DEFAULT_STATE);
+      }
+      setLoaded(true);
     });
+    return unsub;
+  }, []);
+
+  const updateState = useCallback((updater: (prev: AppState) => AppState) => {
+    const prev = stateRef.current;
+    const next = updater(prev);
+    stateRef.current = next;
+    setState(next);
+    writeState(next);
   }, []);
 
   stateRef.current = state;
@@ -82,7 +133,7 @@ export function useSpinner() {
     const trimmed = name.trim();
     if (!trimmed) return;
     updateState(prev => {
-      if (prev.teams[trimmed]) return prev; // already exists
+      if (prev.teams[trimmed]) return prev;
       return {
         ...prev,
         teams: { ...prev.teams, [trimmed]: { members: [], cycle: [], lastPicked: null } },
@@ -94,7 +145,7 @@ export function useSpinner() {
 
   const removeTeam = useCallback((name: string) => {
     updateState(prev => {
-      if (prev.teamOrder.length <= 1) return prev; // don't remove last team
+      if (prev.teamOrder.length <= 1) return prev;
       const newTeams = { ...prev.teams };
       delete newTeams[name];
       const newOrder = prev.teamOrder.filter(t => t !== name);
@@ -107,7 +158,7 @@ export function useSpinner() {
     const trimmed = newName.trim();
     if (!trimmed || trimmed === oldName) return;
     updateState(prev => {
-      if (prev.teams[trimmed]) return prev; // name taken
+      if (prev.teams[trimmed]) return prev;
       const newTeams = { ...prev.teams };
       newTeams[trimmed] = newTeams[oldName];
       delete newTeams[oldName];
@@ -145,13 +196,25 @@ export function useSpinner() {
   }, [updateTeam]);
 
   const skipPick = useCallback((): string | null => {
+    // Undo the last confirmation before re-picking
     const s = stateRef.current;
     const t = s.teams[s.activeTeam];
     if (!t) return null;
-    const pool = t.members.filter(m => !t.cycle.includes(m));
+    if (t.lastPicked && t.cycle.includes(t.lastPicked)) {
+      updateTeam(prev => ({
+        ...prev,
+        cycle: prev.cycle.filter(m => m !== prev.lastPicked),
+        lastPicked: null,
+      }));
+    }
+    // Re-read after undo
+    const s2 = stateRef.current;
+    const t2 = s2.teams[s2.activeTeam];
+    if (!t2) return null;
+    const pool = t2.members.filter(m => !t2.cycle.includes(m));
     if (pool.length === 0) return null;
     return pool[Math.floor(Math.random() * pool.length)];
-  }, []);
+  }, [updateTeam]);
 
   const addMember = useCallback((name: string) => {
     const trimmed = name.trim();
@@ -175,10 +238,39 @@ export function useSpinner() {
     updateTeam(t => ({ ...t, cycle: [], lastPicked: null }));
   }, [updateTeam]);
 
+  // ── Spin event sync ──
+  const [remoteSpinEvent, setRemoteSpinEvent] = useState<SpinEvent | null>(null);
+  const lastHandledSpin = useRef(0);
+
+  const broadcastSpin = useCallback((event: Omit<SpinEvent, 'tabId' | 'timestamp'>) => {
+    const full: SpinEvent = { ...event, tabId: TAB_ID, timestamp: Date.now() };
+    lastHandledSpin.current = full.timestamp;
+    set(ref(db, SPIN_PATH), full);
+  }, []);
+
+  useEffect(() => {
+    const spinRef = ref(db, SPIN_PATH);
+    const unsub = onValue(spinRef, (snapshot) => {
+      const data = snapshot.val() as SpinEvent | null;
+      if (!data) return;
+      // Ignore our own spins and already-handled events
+      if (data.tabId === TAB_ID) return;
+      if (data.timestamp <= lastHandledSpin.current) return;
+      lastHandledSpin.current = data.timestamp;
+      setRemoteSpinEvent(data);
+    });
+    return unsub;
+  }, []);
+
+  const clearRemoteSpin = useCallback(() => {
+    setRemoteSpinEvent(null);
+  }, []);
+
   return {
     state,
     team,
     available,
+    loaded,
     pickNext,
     confirmPick,
     skipPick,
@@ -189,5 +281,8 @@ export function useSpinner() {
     addTeam,
     removeTeam,
     renameTeam,
+    broadcastSpin,
+    remoteSpinEvent,
+    clearRemoteSpin,
   };
 }
