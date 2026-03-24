@@ -22,7 +22,7 @@ export function AppearDisplay({ members, phase, winner, onTrigger }: Props) {
   }, [phase]);
 
   return (
-    <div className="appear-display" onClick={phase === 'idle' ? onTrigger : undefined}>
+    <div className="appear-display" onClick={phase !== 'spinning' ? onTrigger : undefined}>
       {phase === 'idle' && (
         <div className="appear-prompt">
           {members.length > 0 ? 'Tap to pick' : 'Add members to start'}

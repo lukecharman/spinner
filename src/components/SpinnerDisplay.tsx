@@ -83,13 +83,16 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
     setPhase('spinning');
     setRotation(targetRotation);
 
-    const durations: Record<Visualization, number> = { wheel: 7300, appear: 1000, claw: 3500, tarot: 2500 };
+    const durations: Record<Visualization, number> = { wheel: 7300, appear: 1000, claw: 7000, tarot: 2500 };
     const duration = durations[vizRef.current] ?? 4000;
     const t0 = setTimeout(() => {
       baseRotation.current = targetRotation;
       setPhase('done');
       if (!isSkip) {
-        onConfirm(picked);
+        // Delay confirm for claw viz so the paper reveal isn't spoiled
+        const confirmDelay = vizRef.current === 'claw' ? 1800 : 0;
+        const t1 = setTimeout(() => onConfirm(picked), confirmDelay);
+        timeoutsRef.current.push(t1);
       }
     }, duration);
     timeoutsRef.current.push(t0);
@@ -167,7 +170,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
 
   const skip = useCallback(() => {
     if (phase === 'spinning') return;
-    launchSpin(onSkip, 300, true);
+    launchSpin(onSkip, 300, false);
   }, [phase, launchSpin, onSkip]);
 
   const tarotSkip = useCallback(() => {
@@ -276,17 +279,6 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
             onTrigger={spin}
             onSkip={tarotSkip}
           />
-        </div>
-      )}
-
-      {phase === 'done' && winner && (viz === 'appear' || viz === 'claw') && (
-        <div className="button-row">
-          <button
-            className="skip-btn"
-            onClick={skip}
-          >
-            Skip – re-spin
-          </button>
         </div>
       )}
 
