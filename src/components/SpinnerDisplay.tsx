@@ -2,14 +2,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { WheelOfFortune } from './WheelOfFortune';
 import { AppearDisplay } from './AppearDisplay';
 import { ClawMachine } from './ClawMachine';
+import { TarotCards } from './TarotCards';
 import type { SpinEvent } from '../hooks/useSpinner';
 
-export type Visualization = 'wheel' | 'appear' | 'claw';
+export type Visualization = 'wheel' | 'appear' | 'claw' | 'tarot';
 
 const VIZ_LABELS: Record<Visualization, string> = {
   wheel: 'Wheel',
   appear: 'Appear',
   claw: 'Capsule',
+  tarot: 'Tarot',
 };
 
 interface Props {
@@ -27,7 +29,7 @@ type Phase = 'idle' | 'spinning' | 'done';
 export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcastSpin, remoteSpinEvent, onClearRemoteSpin }: Props) {
   const [viz, setViz] = useState<Visualization>(() => {
     const saved = localStorage.getItem('spinner-viz');
-    if (saved === 'appear' || saved === 'claw') return saved;
+    if (saved === 'appear' || saved === 'claw' || saved === 'tarot') return saved;
     return 'wheel';
   });
   const [phase, setPhase] = useState<Phase>('idle');
@@ -68,7 +70,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
     setPhase('spinning');
     setRotation(targetRotation);
 
-    const durations: Record<Visualization, number> = { wheel: 7300, appear: 1000, claw: 3500 };
+    const durations: Record<Visualization, number> = { wheel: 7300, appear: 1000, claw: 3500, tarot: 2500 };
     const duration = durations[vizRef.current] ?? 4000;
     const t0 = setTimeout(() => {
       baseRotation.current = targetRotation;
@@ -149,6 +151,15 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
     if (phase === 'spinning') return;
     launchSpin(onSkip, 300, true);
   }, [phase, launchSpin, onSkip]);
+
+  const tarotSkip = useCallback(() => {
+    if (phase === 'spinning') return;
+    // Undo the pick
+    onSkip();
+    // Reset to idle so cards re-deal face-down
+    setPhase('idle');
+    setWinner(null);
+  }, [phase, onSkip]);
 
   // Drag handlers passed to the wheel
   const handleDragStart = useCallback(() => {
@@ -239,7 +250,19 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
         </div>
       )}
 
-      {viz !== 'claw' && (
+      {viz === 'tarot' && (
+        <div className="stage tarot-stage">
+          <TarotCards
+            members={members}
+            phase={phase}
+            winner={winner}
+            onTrigger={spin}
+            onSkip={tarotSkip}
+          />
+        </div>
+      )}
+
+      {viz !== 'claw' && viz !== 'tarot' && (
         <div className="button-row">
           <button
             className="spin-btn"
