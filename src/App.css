@@ -745,11 +745,14 @@
   letter-spacing: 0.5px;
   animation: tarot-breathe 3s ease-in-out infinite;
   z-index: 2;
+  white-space: nowrap;
+}
+
+.tarot-prompt-below {
   position: absolute;
-  top: 15%;
+  bottom: 12%;
   left: 50%;
   transform: translateX(-50%);
-  white-space: nowrap;
 }
 
 .tarot-reading {

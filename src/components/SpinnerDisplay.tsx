@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { WheelOfFortune } from './WheelOfFortune';
 import { AppearDisplay } from './AppearDisplay';
 import { ClawMachine } from './ClawMachine';
@@ -13,6 +13,19 @@ const VIZ_LABELS: Record<Visualization, string> = {
   claw: 'Capsule',
   tarot: 'Tarot',
 };
+
+const SUBTITLES = [
+  'Evenly distributing discomfort since 2026.',
+  'Because someone has to do it.',
+  'Turning volunteers into voluntolds.',
+  'Fairness through chaos.',
+  'No one is safe.',
+  'Democracy was never this stressful.',
+  'Where every spin is someone else\'s problem.',
+  'Accountability, but make it random.',
+  'The universe decides. You just watch.',
+  'Suffering, now with equal opportunity.',
+];
 
 interface Props {
   members: string[];
@@ -144,8 +157,13 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
 
   const spin = useCallback(() => {
     if (phase === 'spinning') return;
+    if (phase === 'done') {
+      // Re-spin: undo previous pick via onSkip, but confirm the new winner
+      launchSpin(onSkip, 300, false);
+      return;
+    }
     launchSpin(onSpin, 300, false);
-  }, [phase, launchSpin, onSpin]);
+  }, [phase, launchSpin, onSpin, onSkip]);
 
   const skip = useCallback(() => {
     if (phase === 'spinning') return;
@@ -173,20 +191,17 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
   }, []);
 
   const handleDragEnd = useCallback((velocity: number) => {
+    const picker = phase === 'done' ? onSkip : onSpin;
     if (Math.abs(velocity) > 60) {
-      // Flick! Launch the spin with the measured velocity
-      launchSpin(onSpin, velocity, false);
+      launchSpin(picker, velocity, false);
     } else {
-      // Tap or gentle release — just do a normal spin if offset is tiny
       const absOffset = Math.abs(dragOffset);
-      // Absorb the drag offset
       baseRotation.current += dragOffset;
       setDragOffset(0);
       setIsDragging(false);
 
       if (absOffset < 5) {
-        // Tap — spin
-        launchSpin(onSpin, 300, false);
+        launchSpin(picker, 300, false);
       }
       // Otherwise just leave it where the user dragged it
     }
@@ -194,10 +209,12 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
 
   const canSpin = members.length > 0 && phase !== 'spinning';
 
+  const subtitle = useMemo(() => SUBTITLES[Math.floor(Math.random() * SUBTITLES.length)], []);
+
   return (
     <div className="spinner-section">
       <h1 className="spinner-title">The Load Balancer</h1>
-      <p className="spinner-subtitle">"Evenly distributing discomfort since 2026."</p>
+      <p className="spinner-subtitle">"{subtitle}"</p>
 
       <div className="viz-switcher">
         {(Object.keys(VIZ_LABELS) as Visualization[]).map(v => (
@@ -262,24 +279,14 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
         </div>
       )}
 
-      {viz !== 'claw' && viz !== 'tarot' && (
+      {phase === 'done' && winner && (viz === 'appear' || viz === 'claw') && (
         <div className="button-row">
           <button
-            className="spin-btn"
-            onClick={spin}
-            disabled={!canSpin}
+            className="skip-btn"
+            onClick={skip}
           >
-            {phase === 'spinning' ? 'Spinning…' : 'Spin!'}
+            Skip – re-spin
           </button>
-
-          {phase === 'done' && winner && (
-            <button
-              className="skip-btn"
-              onClick={skip}
-            >
-              Skip – re-spin
-            </button>
-          )}
         </div>
       )}
 

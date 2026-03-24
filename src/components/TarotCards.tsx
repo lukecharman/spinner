@@ -182,14 +182,6 @@ export function TarotCards({ members, phase, winner, onTrigger, onSkip }: Props)
       {/* Mystical backdrop */}
       <div className="tarot-smoke" />
 
-      {showPrompt && (
-        <div className="tarot-prompt">Choose your fate…</div>
-      )}
-
-      {phase === 'spinning' && chosenIndex !== null && !revealAll && (
-        <div className="tarot-prompt tarot-reading">The spirits deliberate…</div>
-      )}
-
       <div className="tarot-table">
         {cards.map((card, i) => {
           const isChosen = chosenIndex === i;
@@ -271,6 +263,14 @@ export function TarotCards({ members, phase, winner, onTrigger, onSkip }: Props)
           );
         })}
       </div>
+
+      {showPrompt && (
+        <div className="tarot-prompt tarot-prompt-below">Choose your fate…</div>
+      )}
+
+      {phase === 'spinning' && chosenIndex !== null && !revealAll && (
+        <div className="tarot-prompt tarot-prompt-below tarot-reading">The spirits deliberate…</div>
+      )}
 
       {isDoneWithWinner(phase, winner) && (
         <div className="tarot-result">
