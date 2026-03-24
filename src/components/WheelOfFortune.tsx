@@ -8,7 +8,6 @@ const COLORS = [
 ];
 
 interface Props {
-  size?: number;
   members: string[];
   rotation: number;
   dragOffset: number;
@@ -23,7 +22,7 @@ interface Props {
 }
 
 export function WheelOfFortune({
-  size = 560, members, rotation, dragOffset, isDragging: dragging,
+  members, rotation, dragOffset, isDragging: dragging,
   phase, winner, onSpin, onFlick, onDragStart, onDragMove, onDragEnd,
 }: Props) {
   const n = members.length;
@@ -165,8 +164,6 @@ export function WheelOfFortune({
       ref={containerRef}
       className="wheel-container"
       style={{
-        width: size,
-        height: size,
         cursor: phase === 'spinning' ? 'default' : dragging ? 'grabbing' : 'grab',
         touchAction: 'none',
       }}
@@ -179,8 +176,6 @@ export function WheelOfFortune({
       <div className="wheel-pointer" />
 
       <svg
-        width={size}
-        height={size}
         viewBox="0 0 320 320"
         className="wheel-svg"
       >

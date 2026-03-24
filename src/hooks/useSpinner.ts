@@ -241,6 +241,7 @@ export function useSpinner() {
   // ── Spin event sync ──
   const [remoteSpinEvent, setRemoteSpinEvent] = useState<SpinEvent | null>(null);
   const lastHandledSpin = useRef(0);
+  const mountTime = useRef(Date.now());
 
   const broadcastSpin = useCallback((event: Omit<SpinEvent, 'tabId' | 'timestamp'>) => {
     const full: SpinEvent = { ...event, tabId: TAB_ID, timestamp: Date.now() };
@@ -256,6 +257,8 @@ export function useSpinner() {
       // Ignore our own spins and already-handled events
       if (data.tabId === TAB_ID) return;
       if (data.timestamp <= lastHandledSpin.current) return;
+      // Ignore stale events that existed before this tab loaded
+      if (data.timestamp < mountTime.current) return;
       lastHandledSpin.current = data.timestamp;
       setRemoteSpinEvent(data);
     });

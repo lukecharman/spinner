@@ -1,19 +1,20 @@
 /* ── Layout ─────────────────────────────────────────────── */
 .app {
-  min-height: 100svh;
+  height: 100svh;
   display: flex;
   flex-direction: column;
   padding: 0;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 .main-layout {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: center;
   gap: 2rem;
   padding: 1rem 2rem 2rem;
   flex: 1;
+  min-height: 0;
 }
 
 @media (max-width: 900px) {
@@ -28,6 +29,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex: 1;
+  min-height: 0;
 }
 
 .spinner-title {
@@ -81,7 +84,8 @@
 /* ── Stage ───────────────────────────────────────────────── */
 .stage {
   width: 100%;
-  min-height: 480px;
+  flex: 1;
+  min-height: 0;
   position: relative;
   overflow: visible;
   background: linear-gradient(
@@ -97,6 +101,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 1;
+  min-height: 0;
 }
 
 /* ── Appear Stage ────────────────────────────────────────── */
@@ -157,16 +163,156 @@
   100% { opacity: 1; transform: scale(1); }
 }
 
+/* ── Capsule Toy Machine ─────────────────────────────────── */
+.claw-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+}
+
+.capsule-machine {
+  position: relative;
+  height: 100%;
+  max-height: 100%;
+  aspect-ratio: 320 / 400;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.capsule-svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.3));
+}
+
+/* Push button on the front of the machine */
+.capsule-button {
+  cursor: pointer;
+}
+
+.capsule-button-inner {
+  transition: transform 0.1s ease;
+  transform-origin: 160px 330px;
+}
+
+.capsule-button:hover .capsule-button-face {
+  fill: #ff5252;
+}
+
+.capsule-button-down .capsule-button-face {
+  fill: #c0392b;
+}
+
+.capsule-button-down {
+  transform: scale(0.88);
+}
+
+.capsule-button-pressed .capsule-button-face {
+  fill: #b71c1c;
+}
+
+.capsule-button-pressed {
+  animation: button-press 0.5s ease-out;
+}
+
+@keyframes button-press {
+  0%   { transform: translateY(0); }
+  20%  { transform: translateY(3px); }
+  50%  { transform: translateY(3px); }
+  100% { transform: translateY(0); }
+}
+
+/* Winning capsule is now dispensed by the physics engine */
+
+/* ── Winner overlay — capsule rises from the chute and opens ── */
+.capsule-chute-reveal {
+  position: absolute;
+  /* Position at the chute opening — SVG is 320 wide inside a 480px container */
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 20;
+  pointer-events: none;
+  animation: chute-rise 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes chute-rise {
+  0%   { bottom: 18px; opacity: 1; }
+  100% { bottom: 55%; opacity: 1; }
+}
+
+.capsule-chute-ball {
+  width: 70px;
+  height: 70px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.capsule-chute-top,
+.capsule-chute-bottom {
+  position: absolute;
+  left: 0;
+  width: 70px;
+  height: 35px;
+}
+
+.capsule-chute-top {
+  top: 0;
+  background: color-mix(in srgb, var(--capsule-color) 70%, white 30%);
+  border-radius: 35px 35px 0 0;
+  transform-origin: bottom center;
+  animation: chute-open-top 0.5s 1.0s ease-out forwards;
+  box-shadow: inset 0 -2px 6px rgba(0,0,0,0.1);
+}
+
+.capsule-chute-bottom {
+  bottom: 0;
+  background: var(--capsule-color);
+  border-radius: 0 0 35px 35px;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.15);
+}
+
+@keyframes chute-open-top {
+  0%   { transform: translateY(0) rotate(0); }
+  100% { transform: translateY(-20px) rotate(-35deg); opacity: 0.3; }
+}
+
+.capsule-chute-reveal .capsule-winner-name {
+  font-size: clamp(2.2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+  text-align: center;
+  opacity: 0;
+  animation: winner-name-zoom 0.5s 1.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  text-shadow: 0 2px 12px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+@keyframes winner-name-zoom {
+  0%   { opacity: 0; transform: scale(0.4); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
 /* ── Wheel container ─────────────────────────────────────── */
 .wheel-container {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 100%;
+  aspect-ratio: 1;
 }
 
 .wheel-svg {
   display: block;
+  width: 100%;
+  height: 100%;
   filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.2));
 }
 

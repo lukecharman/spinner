@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { WheelOfFortune } from './WheelOfFortune';
 import { AppearDisplay } from './AppearDisplay';
+import { ClawMachine } from './ClawMachine';
 import type { SpinEvent } from '../hooks/useSpinner';
 
-export type Visualization = 'wheel' | 'appear';
+export type Visualization = 'wheel' | 'appear' | 'claw';
 
 const VIZ_LABELS: Record<Visualization, string> = {
   wheel: 'Wheel',
   appear: 'Appear',
+  claw: 'Capsule',
 };
 
 interface Props {
@@ -25,7 +27,8 @@ type Phase = 'idle' | 'spinning' | 'done';
 export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcastSpin, remoteSpinEvent, onClearRemoteSpin }: Props) {
   const [viz, setViz] = useState<Visualization>(() => {
     const saved = localStorage.getItem('spinner-viz');
-    return saved === 'appear' ? 'appear' : 'wheel';
+    if (saved === 'appear' || saved === 'claw') return saved;
+    return 'wheel';
   });
   const [phase, setPhase] = useState<Phase>('idle');
   const [winner, setWinner] = useState<string | null>(null);
@@ -40,6 +43,8 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
   const switchViz = useCallback((v: Visualization) => {
     setViz(v);
     localStorage.setItem('spinner-viz', v);
+    setPhase('idle');
+    setWinner(null);
   }, []);
 
   useEffect(() => () => { timeoutsRef.current.forEach(clearTimeout); }, []);
@@ -52,7 +57,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
   /** Animate the wheel to a specific target rotation */
   const playSpin = useCallback((targetRotation: number, picked: string, isSkip: boolean) => {
     clearTimeouts();
-    setWinner(null);
+    setWinner(picked);
 
     // Absorb any drag offset into the base before spinning
     const currentBase = baseRotation.current + dragOffset;
@@ -63,11 +68,11 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
     setPhase('spinning');
     setRotation(targetRotation);
 
-    const duration = vizRef.current === 'wheel' ? 7300 : 1000;
+    const durations: Record<Visualization, number> = { wheel: 7300, appear: 1000, claw: 3500 };
+    const duration = durations[vizRef.current] ?? 4000;
     const t0 = setTimeout(() => {
       baseRotation.current = targetRotation;
       setPhase('done');
-      setWinner(picked);
       if (!isSkip) {
         onConfirm(picked);
       }
@@ -198,7 +203,6 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
       {viz === 'wheel' && (
         <div className="stage wheel-stage">
           <WheelOfFortune
-            size={560}
             members={members}
             rotation={rotation}
             dragOffset={dragOffset}
@@ -224,24 +228,37 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
         </div>
       )}
 
-      <div className="button-row">
-        <button
-          className="spin-btn"
-          onClick={spin}
-          disabled={!canSpin}
-        >
-          {phase === 'spinning' ? 'Spinning…' : 'Spin!'}
-        </button>
+      {viz === 'claw' && (
+        <div className="stage claw-stage">
+          <ClawMachine
+            members={members}
+            phase={phase}
+            winner={winner}
+            onTrigger={spin}
+          />
+        </div>
+      )}
 
-        {phase === 'done' && winner && (
+      {viz !== 'claw' && (
+        <div className="button-row">
           <button
-            className="skip-btn"
-            onClick={skip}
+            className="spin-btn"
+            onClick={spin}
+            disabled={!canSpin}
           >
-            Skip – re-spin
+            {phase === 'spinning' ? 'Spinning…' : 'Spin!'}
           </button>
-        )}
-      </div>
+
+          {phase === 'done' && winner && (
+            <button
+              className="skip-btn"
+              onClick={skip}
+            >
+              Skip – re-spin
+            </button>
+          )}
+        </div>
+      )}
 
       {members.length === 0 && (
         <p className="hint">Add some team members to get started.</p>
