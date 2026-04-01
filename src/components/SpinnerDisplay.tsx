@@ -16,6 +16,9 @@ const VIZ_LABELS: Record<Visualization, string> = {
   '8ball': '8-Ball',
 };
 
+/** Visualizations hidden from the UI (still functional, just not selectable) */
+const HIDDEN_VIZ: Set<Visualization> = new Set(['8ball']);
+
 const SUBTITLES = [
   'Evenly distributing discomfort since 2026.',
   'Because someone has to do it.',
@@ -54,7 +57,9 @@ type Phase = 'idle' | 'spinning' | 'done';
 export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcastSpin, remoteSpinEvent, onClearRemoteSpin }: Props) {
   const [viz, setViz] = useState<Visualization>(() => {
     const saved = localStorage.getItem('spinner-viz');
-    if (saved === 'appear' || saved === 'claw' || saved === 'tarot' || saved === '8ball') return saved;
+    if (saved === 'appear' || saved === 'claw' || saved === 'tarot' || saved === '8ball') {
+      if (!HIDDEN_VIZ.has(saved)) return saved;
+    }
     return 'wheel';
   });
   const [phase, setPhase] = useState<Phase>('idle');
@@ -225,7 +230,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
       <p className="spinner-subtitle">"{subtitle}"</p>
 
       <div className="viz-switcher">
-        {(Object.keys(VIZ_LABELS) as Visualization[]).map(v => (
+        {(Object.keys(VIZ_LABELS) as Visualization[]).filter(v => !HIDDEN_VIZ.has(v)).map(v => (
           <button
             key={v}
             className={`viz-btn ${v === viz ? 'active' : ''}`}

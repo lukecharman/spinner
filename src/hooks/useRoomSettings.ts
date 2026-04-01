@@ -46,21 +46,46 @@ export function useRoomSettings(roomId: string) {
   return { accentColor, changeAccentColor };
 }
 
+export type ThemeSetting = 'dark' | 'light' | 'system';
 export type Theme = 'dark' | 'light';
 
+function resolveTheme(setting: ThemeSetting): Theme {
+  if (setting === 'system') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return setting;
+}
+
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    return (localStorage.getItem('spinner-theme') as Theme) || 'dark';
+  const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => {
+    return (localStorage.getItem('spinner-theme') as ThemeSetting) || 'dark';
   });
 
+  const [resolved, setResolved] = useState<Theme>(() => resolveTheme(themeSetting));
+
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('spinner-theme', theme);
-  }, [theme]);
+    const r = resolveTheme(themeSetting);
+    setResolved(r);
+    document.documentElement.setAttribute('data-theme', r);
+    localStorage.setItem('spinner-theme', themeSetting);
+  }, [themeSetting]);
+
+  // Listen for OS theme changes when in 'system' mode
+  useEffect(() => {
+    if (themeSetting !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => {
+      const r = resolveTheme('system');
+      setResolved(r);
+      document.documentElement.setAttribute('data-theme', r);
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [themeSetting]);
 
   const toggleTheme = useCallback(() => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    setThemeSetting(prev => prev === 'dark' ? 'light' : prev === 'light' ? 'system' : 'dark');
   }, []);
 
-  return { theme, toggleTheme };
+  return { theme: resolved, themeSetting, toggleTheme };
 }

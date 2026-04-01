@@ -25,7 +25,7 @@ function SpinnerApp({ roomId, roomName, onLeave }: { roomId: string; roomName: s
     broadcastSpin, remoteSpinEvent, clearRemoteSpin,
   } = useSpinner(roomId);
   const { accentColor, changeAccentColor } = useRoomSettings(roomId);
-  const { theme, toggleTheme } = useTheme();
+  const { theme, themeSetting, toggleTheme } = useTheme();
 
   if (!loaded) {
     return <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>Loading…</div>;
@@ -48,8 +48,8 @@ function SpinnerApp({ roomId, roomName, onLeave }: { roomId: string; roomName: s
               />
             ))}
           </div>
-          <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
-            {theme === 'dark' ? '☀️' : '🌙'}
+          <button className="theme-toggle" onClick={toggleTheme} title={`Theme: ${themeSetting} (click to change)`}>
+            {themeSetting === 'dark' ? '🌙' : themeSetting === 'light' ? '☀️' : '💻'}
           </button>
           <button className="room-leave-btn" onClick={onLeave}>Switch Room</button>
         </div>
