@@ -3,15 +3,17 @@ import { WheelOfFortune } from './WheelOfFortune';
 import { AppearDisplay } from './AppearDisplay';
 import { ClawMachine } from './ClawMachine';
 import { TarotCards } from './TarotCards';
+import { Magic8Ball } from './Magic8Ball';
 import type { SpinEvent } from '../hooks/useSpinner';
 
-export type Visualization = 'wheel' | 'appear' | 'claw' | 'tarot';
+export type Visualization = 'wheel' | 'appear' | 'claw' | 'tarot' | '8ball';
 
 const VIZ_LABELS: Record<Visualization, string> = {
   wheel: 'Wheel',
   appear: 'Appear',
   claw: 'Capsule',
   tarot: 'Tarot',
+  '8ball': '8-Ball',
 };
 
 const SUBTITLES = [
@@ -25,6 +27,16 @@ const SUBTITLES = [
   'Accountability, but make it random.',
   'The universe decides. You just watch.',
   'Suffering, now with equal opportunity.',
+  'You can\'t hide from the wheel.',
+  'Today\'s volunteer has already been chosen. They just don\'t know yet.',
+  'Rotating responsibility until morale improves.',
+  'The wheel remembers. The wheel always remembers.',
+  'Hope is the thing with feathers. This is not that.',
+  'Fortune favours the bold. This favours no one.',
+  'All roads lead to your name on the wheel.',
+  'Resistance is futile. The spinner has spoken.',
+  'Not a popularity contest. More of a lottery of doom.',
+  'May the odds be never in your favour.',
 ];
 
 interface Props {
@@ -42,7 +54,7 @@ type Phase = 'idle' | 'spinning' | 'done';
 export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcastSpin, remoteSpinEvent, onClearRemoteSpin }: Props) {
   const [viz, setViz] = useState<Visualization>(() => {
     const saved = localStorage.getItem('spinner-viz');
-    if (saved === 'appear' || saved === 'claw' || saved === 'tarot') return saved;
+    if (saved === 'appear' || saved === 'claw' || saved === 'tarot' || saved === '8ball') return saved;
     return 'wheel';
   });
   const [phase, setPhase] = useState<Phase>('idle');
@@ -83,7 +95,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
     setPhase('spinning');
     setRotation(targetRotation);
 
-    const durations: Record<Visualization, number> = { wheel: 7300, appear: 1000, claw: 7000, tarot: 2500 };
+    const durations: Record<Visualization, number> = { wheel: 7300, appear: 1000, claw: 7000, tarot: 2500, '8ball': 3000 };
     const duration = durations[vizRef.current] ?? 4000;
     const t0 = setTimeout(() => {
       baseRotation.current = targetRotation;
@@ -168,11 +180,6 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
     launchSpin(onSpin, 300, false);
   }, [phase, launchSpin, onSpin, onSkip]);
 
-  const skip = useCallback(() => {
-    if (phase === 'spinning') return;
-    launchSpin(onSkip, 300, false);
-  }, [phase, launchSpin, onSkip]);
-
   const tarotSkip = useCallback(() => {
     if (phase === 'spinning') return;
     // Undo the pick
@@ -209,8 +216,6 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
       // Otherwise just leave it where the user dragged it
     }
   }, [dragOffset, launchSpin, onSpin]);
-
-  const canSpin = members.length > 0 && phase !== 'spinning';
 
   const subtitle = useMemo(() => SUBTITLES[Math.floor(Math.random() * SUBTITLES.length)], []);
 
@@ -278,6 +283,17 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
             winner={winner}
             onTrigger={spin}
             onSkip={tarotSkip}
+          />
+        </div>
+      )}
+
+      {viz === '8ball' && (
+        <div className="stage magic8-stage">
+          <Magic8Ball
+            members={members}
+            phase={phase}
+            winner={winner}
+            onTrigger={spin}
           />
         </div>
       )}

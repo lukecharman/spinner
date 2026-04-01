@@ -52,7 +52,7 @@ const HOLE_HALF_W = BALL_R + 4;
      y >= 190  → nearly straight sides, ~116 px from center
      y <  190  → narrows toward the top cap */
 const DOME_TOP = 42;
-const DOME_BOTTOM = 308;
+const DOME_BOTTOM = 303;
 
 function domeHalfWidth(y: number): number {
   if (y >= DOME_BOTTOM || y <= DOME_TOP) return 0;
@@ -412,6 +412,7 @@ export function ClawMachine({ members, phase, winner, onTrigger }: Props) {
 
         {/* ── Dome ── */}
         <path
+          className="capsule-dome-outline capsule-dome-fill"
           d="M 48 308 C 46 268 44 228 44 190 C 44 95 82 44 160 38 C 238 44 276 95 276 190 C 276 228 274 268 272 308 Z"
           fill="rgba(200,225,255,0.06)"
           stroke="rgba(255,255,255,0.15)"

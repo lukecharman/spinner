@@ -23,7 +23,7 @@ interface Props {
 
 export function WheelOfFortune({
   members, rotation, dragOffset, isDragging: dragging,
-  phase, winner, onSpin, onFlick, onDragStart, onDragMove, onDragEnd,
+  phase, winner, onSpin: _onSpin, onFlick: _onFlick, onDragStart, onDragMove, onDragEnd,
 }: Props) {
   const n = members.length;
   const sliceAngle = n > 0 ? 360 / n : 360;
@@ -124,12 +124,6 @@ export function WheelOfFortune({
         : `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
 
       // Label position — halfway through the slice, 60% out from center
-      const midAngle = ((startAngle + endAngle) / 2 - 90) * (Math.PI / 180);
-      const labelR = r * 0.62;
-      const lx = cx + labelR * Math.cos(midAngle);
-      const ly = cy + labelR * Math.sin(midAngle);
-      const labelRotation = (startAngle + endAngle) / 2;
-
       const color = COLORS[i % COLORS.length];
 
       // Compute font size based on number of slices
@@ -186,7 +180,8 @@ export function WheelOfFortune({
         <g
           style={{
             transform: `rotate(${totalRotation}deg)`,
-            transformOrigin: '160px 160px',
+            transformBox: 'fill-box',
+            transformOrigin: 'center',
             transition: phase === 'spinning' && !dragging
               ? 'transform 7s cubic-bezier(0.12, 0.6, 0.08, 1)'
               : 'none',

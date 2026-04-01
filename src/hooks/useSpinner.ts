@@ -2,8 +2,6 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { ref, onValue, set } from 'firebase/database';
 import { db } from '../firebase';
 
-const DB_PATH = 'spinner-state';
-const SPIN_PATH = 'spin-event';
 const TAB_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export interface SpinEvent {
@@ -20,78 +18,41 @@ export interface TeamState {
   lastPicked: string | null;
 }
 
-export interface AppState {
-  teams: Record<string, TeamState>;
-  teamOrder: string[];
-  activeTeam: string;
-}
-
-const DEFAULT_TEAM: TeamState = {
+const DEFAULT_STATE: TeamState = {
   members: ['Alice', 'Bob', 'Carol', 'Dan', 'Eve'],
   cycle: [],
   lastPicked: null,
 };
 
-const DEFAULT_STATE: AppState = {
-  teams: { 'Team 1': DEFAULT_TEAM },
-  teamOrder: ['Team 1'],
-  activeTeam: 'Team 1',
-};
-
-/** Validate / coerce data from Firebase into a safe AppState */
-function parseState(data: unknown): AppState | null {
+/** Validate / coerce data from Firebase into a safe TeamState */
+function parseState(data: unknown): TeamState | null {
   if (!data || typeof data !== 'object') return null;
   const d = data as Record<string, unknown>;
 
-  if (d.teams && d.teamOrder) {
-    const teams = d.teams as Record<string, unknown>;
-    const teamOrder = Array.isArray(d.teamOrder) ? d.teamOrder as string[] : Object.keys(teams);
-    const parsedTeams: Record<string, TeamState> = {};
-
-    for (const [name, raw] of Object.entries(teams)) {
-      const t = raw as Record<string, unknown>;
-      parsedTeams[name] = {
-        members: Array.isArray(t.members) ? t.members : [],
-        cycle: Array.isArray(t.cycle) ? t.cycle : [],
-        lastPicked: typeof t.lastPicked === 'string' ? t.lastPicked : null,
-      };
-    }
-
-    // Firebase strips empty objects, so teams in teamOrder may be missing from data
-    for (const name of teamOrder) {
-      if (!parsedTeams[name]) {
-        parsedTeams[name] = { members: [], cycle: [], lastPicked: null };
-      }
-    }
-
-    const activeTeam = typeof d.activeTeam === 'string' && parsedTeams[d.activeTeam]
-      ? d.activeTeam as string
-      : teamOrder[0] ?? 'Team 1';
-
-    return { teams: parsedTeams, teamOrder, activeTeam };
-  }
-
-  // Migrate old single-team format
   if (d.members && Array.isArray(d.members)) {
-    const team: TeamState = {
+    return {
       members: d.members as string[],
       cycle: Array.isArray(d.cycle) ? d.cycle as string[] : [],
       lastPicked: typeof d.lastPicked === 'string' ? d.lastPicked : null,
     };
-    return { teams: { 'Team 1': team }, teamOrder: ['Team 1'], activeTeam: 'Team 1' };
   }
 
   return null;
 }
 
-function writeState(state: AppState): void {
-  set(ref(db, DB_PATH), state);
-}
+export function useSpinner(roomId: string) {
+  const DB_PATH = `rooms/${roomId}/spinner-state`;
+  const SPIN_PATH = `rooms/${roomId}/spin-event`;
 
-export function useSpinner() {
-  const [state, setState] = useState<AppState>(DEFAULT_STATE);
+  const [state, setState] = useState<TeamState>(DEFAULT_STATE);
   const [loaded, setLoaded] = useState(false);
   const stateRef = useRef(state);
+  const dbPathRef = useRef(DB_PATH);
+  dbPathRef.current = DB_PATH;
+
+  function writeState(s: TeamState): void {
+    set(ref(db, dbPathRef.current), s);
+  }
 
   // Real-time listener — syncs Firebase → local state
   useEffect(() => {
@@ -109,9 +70,9 @@ export function useSpinner() {
       setLoaded(true);
     });
     return unsub;
-  }, []);
+  }, [DB_PATH]);
 
-  const updateState = useCallback((updater: (prev: AppState) => AppState) => {
+  const updateState = useCallback((updater: (prev: TeamState) => TeamState) => {
     const prev = stateRef.current;
     const next = updater(prev);
     stateRef.current = next;
@@ -121,122 +82,62 @@ export function useSpinner() {
 
   stateRef.current = state;
 
-  const team = state.teams[state.activeTeam] ?? { members: [], cycle: [], lastPicked: null };
-  const available = team.members.filter(m => !team.cycle.includes(m));
+  const available = state.members.filter(m => !state.cycle.includes(m));
 
-  // ── Team management ──
-  const setActiveTeam = useCallback((name: string) => {
-    updateState(prev => ({ ...prev, activeTeam: name }));
-  }, [updateState]);
-
-  const addTeam = useCallback((name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    updateState(prev => {
-      if (prev.teams[trimmed]) return prev;
-      return {
-        ...prev,
-        teams: { ...prev.teams, [trimmed]: { members: [], cycle: [], lastPicked: null } },
-        teamOrder: [...prev.teamOrder, trimmed],
-        activeTeam: trimmed,
-      };
-    });
-  }, [updateState]);
-
-  const removeTeam = useCallback((name: string) => {
-    updateState(prev => {
-      if (prev.teamOrder.length <= 1) return prev;
-      const newTeams = { ...prev.teams };
-      delete newTeams[name];
-      const newOrder = prev.teamOrder.filter(t => t !== name);
-      const newActive = prev.activeTeam === name ? newOrder[0] : prev.activeTeam;
-      return { ...prev, teams: newTeams, teamOrder: newOrder, activeTeam: newActive };
-    });
-  }, [updateState]);
-
-  const renameTeam = useCallback((oldName: string, newName: string) => {
-    const trimmed = newName.trim();
-    if (!trimmed || trimmed === oldName) return;
-    updateState(prev => {
-      if (prev.teams[trimmed]) return prev;
-      const newTeams = { ...prev.teams };
-      newTeams[trimmed] = newTeams[oldName];
-      delete newTeams[oldName];
-      const newOrder = prev.teamOrder.map(t => t === oldName ? trimmed : t);
-      const newActive = prev.activeTeam === oldName ? trimmed : prev.activeTeam;
-      return { ...prev, teams: newTeams, teamOrder: newOrder, activeTeam: newActive };
-    });
-  }, [updateState]);
-
-  // ── Helper to update the active team's state ──
-  const updateTeam = useCallback((updater: (t: TeamState) => TeamState) => {
-    updateState(prev => {
-      const current = prev.teams[prev.activeTeam];
-      if (!current) return prev;
-      return { ...prev, teams: { ...prev.teams, [prev.activeTeam]: updater(current) } };
-    });
-  }, [updateState]);
-
-  // ── Member / pick operations (scoped to active team) ──
+  // ── Member / pick operations ──
   const pickNext = useCallback((): string | null => {
-    const s = stateRef.current;
-    const t = s.teams[s.activeTeam];
-    if (!t) return null;
+    const t = stateRef.current;
     const pool = t.members.filter(m => !t.cycle.includes(m));
     if (pool.length === 0) return null;
     return pool[Math.floor(Math.random() * pool.length)];
   }, []);
 
   const confirmPick = useCallback((winner: string) => {
-    updateTeam(t => {
+    updateState(t => {
       const newCycle = [...t.cycle, winner];
       const resetCycle = newCycle.length >= t.members.length ? [] : newCycle;
       return { ...t, cycle: resetCycle, lastPicked: winner };
     });
-  }, [updateTeam]);
+  }, [updateState]);
 
   const skipPick = useCallback((): string | null => {
     // Undo the last confirmation before re-picking
-    const s = stateRef.current;
-    const t = s.teams[s.activeTeam];
-    if (!t) return null;
+    const t = stateRef.current;
     if (t.lastPicked && t.cycle.includes(t.lastPicked)) {
-      updateTeam(prev => ({
+      updateState(prev => ({
         ...prev,
         cycle: prev.cycle.filter(m => m !== prev.lastPicked),
         lastPicked: null,
       }));
     }
     // Re-read after undo
-    const s2 = stateRef.current;
-    const t2 = s2.teams[s2.activeTeam];
-    if (!t2) return null;
+    const t2 = stateRef.current;
     const pool = t2.members.filter(m => !t2.cycle.includes(m));
     if (pool.length === 0) return null;
     return pool[Math.floor(Math.random() * pool.length)];
-  }, [updateTeam]);
+  }, [updateState]);
 
   const addMember = useCallback((name: string) => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    updateTeam(t => {
+    updateState(t => {
       if (t.members.includes(trimmed)) return t;
       return { ...t, members: [...t.members, trimmed] };
     });
-  }, [updateTeam]);
+  }, [updateState]);
 
   const removeMember = useCallback((name: string) => {
-    updateTeam(t => ({
+    updateState(t => ({
       ...t,
       members: t.members.filter(m => m !== name),
       cycle: t.cycle.filter(m => m !== name),
       lastPicked: t.lastPicked === name ? null : t.lastPicked,
     }));
-  }, [updateTeam]);
+  }, [updateState]);
 
   const resetCycle = useCallback(() => {
-    updateTeam(t => ({ ...t, cycle: [], lastPicked: null }));
-  }, [updateTeam]);
+    updateState(t => ({ ...t, cycle: [], lastPicked: null }));
+  }, [updateState]);
 
   // ── Spin event sync ──
   const [remoteSpinEvent, setRemoteSpinEvent] = useState<SpinEvent | null>(null);
@@ -263,7 +164,7 @@ export function useSpinner() {
       setRemoteSpinEvent(data);
     });
     return unsub;
-  }, []);
+  }, [SPIN_PATH]);
 
   const clearRemoteSpin = useCallback(() => {
     setRemoteSpinEvent(null);
@@ -271,7 +172,6 @@ export function useSpinner() {
 
   return {
     state,
-    team,
     available,
     loaded,
     pickNext,
@@ -280,10 +180,6 @@ export function useSpinner() {
     addMember,
     removeMember,
     resetCycle,
-    setActiveTeam,
-    addTeam,
-    removeTeam,
-    renameTeam,
     broadcastSpin,
     remoteSpinEvent,
     clearRemoteSpin,
