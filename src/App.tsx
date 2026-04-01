@@ -25,7 +25,7 @@ function SpinnerApp({ roomId, roomName, onLeave }: { roomId: string; roomName: s
     broadcastSpin, remoteSpinEvent, clearRemoteSpin,
   } = useSpinner(roomId);
   const { accentColor, changeAccentColor } = useRoomSettings(roomId);
-  const { theme, themeSetting, toggleTheme } = useTheme();
+  const { themeSetting, toggleTheme } = useTheme();
 
   if (!loaded) {
     return <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>Loading…</div>;
