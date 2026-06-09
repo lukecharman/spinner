@@ -4,10 +4,9 @@ import { AppearDisplay } from './AppearDisplay';
 import { ClawMachine } from './ClawMachine';
 import { TarotCards } from './TarotCards';
 import { Magic8Ball } from './Magic8Ball';
-import { DiceRoll } from './DiceRoll';
 import type { SpinEvent } from '../hooks/useSpinner';
 
-export type Visualization = 'wheel' | 'appear' | 'claw' | 'tarot' | '8ball' | 'dice';
+export type Visualization = 'wheel' | 'appear' | 'claw' | 'tarot' | '8ball';
 
 const VIZ_LABELS: Record<Visualization, string> = {
   wheel: 'Wheel',
@@ -15,7 +14,6 @@ const VIZ_LABELS: Record<Visualization, string> = {
   claw: 'Capsule',
   tarot: 'Tarot',
   '8ball': '8-Ball',
-  dice: 'Dice',
 };
 
 /** Visualizations hidden from the UI (still functional, just not selectable) */
@@ -59,7 +57,7 @@ type Phase = 'idle' | 'spinning' | 'done';
 export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcastSpin, remoteSpinEvent, onClearRemoteSpin }: Props) {
   const [viz, setViz] = useState<Visualization>(() => {
     const saved = localStorage.getItem('spinner-viz');
-    if (saved === 'appear' || saved === 'claw' || saved === 'tarot' || saved === '8ball' || saved === 'dice') {
+    if (saved === 'appear' || saved === 'claw' || saved === 'tarot' || saved === '8ball') {
       if (!HIDDEN_VIZ.has(saved)) return saved;
     }
     return 'wheel';
@@ -104,7 +102,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
     setPhase('spinning');
     setRotation(targetRotation);
 
-    const durations: Record<Visualization, number> = { wheel: 7300, appear: 1000, claw: 7000, tarot: 2500, '8ball': 3000, dice: 3500 };
+    const durations: Record<Visualization, number> = { wheel: 7300, appear: 1000, claw: 7000, tarot: 2500, '8ball': 3000 };
     const duration = durations[vizRef.current] ?? 4000;
     const t0 = setTimeout(() => {
       baseRotation.current = targetRotation;
@@ -299,17 +297,6 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
       {viz === '8ball' && (
         <div className="stage magic8-stage">
           <Magic8Ball
-            members={members}
-            phase={phase}
-            winner={winner}
-            onTrigger={spin}
-          />
-        </div>
-      )}
-
-      {viz === 'dice' && (
-        <div className="stage dice-stage">
-          <DiceRoll
             members={members}
             phase={phase}
             winner={winner}
