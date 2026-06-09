@@ -48,7 +48,10 @@ export function useSpinner(roomId: string) {
   const [loaded, setLoaded] = useState(false);
   const stateRef = useRef(state);
   const dbPathRef = useRef(DB_PATH);
-  dbPathRef.current = DB_PATH;
+
+  useEffect(() => {
+    dbPathRef.current = DB_PATH;
+  }, [DB_PATH]);
 
   function writeState(s: TeamState): void {
     set(ref(db, dbPathRef.current), s);
@@ -80,7 +83,9 @@ export function useSpinner(roomId: string) {
     writeState(next);
   }, []);
 
-  stateRef.current = state;
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const available = state.members.filter(m => !state.cycle.includes(m));
 
@@ -142,7 +147,7 @@ export function useSpinner(roomId: string) {
   // ── Spin event sync ──
   const [remoteSpinEvent, setRemoteSpinEvent] = useState<SpinEvent | null>(null);
   const lastHandledSpin = useRef(0);
-  const mountTime = useRef(Date.now());
+  const [mountTime] = useState(() => Date.now());
 
   const broadcastSpin = useCallback((event: Omit<SpinEvent, 'tabId' | 'timestamp'>) => {
     const full: SpinEvent = { ...event, tabId: TAB_ID, timestamp: Date.now() };
@@ -159,7 +164,7 @@ export function useSpinner(roomId: string) {
       if (data.tabId === TAB_ID) return;
       if (data.timestamp <= lastHandledSpin.current) return;
       // Ignore stale events that existed before this tab loaded
-      if (data.timestamp < mountTime.current) return;
+      if (data.timestamp < mountTime) return;
       lastHandledSpin.current = data.timestamp;
       setRemoteSpinEvent(data);
     });

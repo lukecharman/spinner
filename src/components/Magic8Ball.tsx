@@ -18,9 +18,11 @@ export function Magic8Ball({ members, phase, winner, onTrigger }: Props) {
     { name: string; x: number; y: number; vx: number; vy: number; blur: number; opacity: number; scale: number }[]
   >([]);
   const phaseRef = useRef(phase);
-  phaseRef.current = phase;
   const winnerRef = useRef(winner);
-  winnerRef.current = winner;
+  useEffect(() => {
+    phaseRef.current = phase;
+    winnerRef.current = winner;
+  }, [phase, winner]);
 
   // ── Ball physics state ──
   const [ballPos, setBallPos] = useState({ x: 0, y: 0 });
@@ -131,11 +133,10 @@ export function Magic8Ball({ members, phase, winner, onTrigger }: Props) {
     // Don't cancel on cleanup — let the animation continue into 'done' phase
   }, [phase, startScramble]);
 
-  // Clear floating names and cancel animation on idle
+  // Cancel animation when returning to idle (floating names are hidden while idle)
   useEffect(() => {
     if (phase === 'idle') {
       cancelAnimationFrame(rafRef.current);
-      setFloatingNames([]);
       namesRef.current = [];
     }
   }, [phase]);

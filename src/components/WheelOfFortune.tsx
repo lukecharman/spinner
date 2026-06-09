@@ -23,7 +23,7 @@ interface Props {
 
 export function WheelOfFortune({
   members, rotation, dragOffset, isDragging: dragging,
-  phase, winner, onSpin: _onSpin, onFlick: _onFlick, onDragStart, onDragMove, onDragEnd,
+  phase, winner, onDragStart, onDragMove, onDragEnd,
 }: Props) {
   const n = members.length;
   const sliceAngle = n > 0 ? 360 / n : 360;

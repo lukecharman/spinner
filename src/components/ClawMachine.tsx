@@ -21,6 +21,8 @@ interface BallLayout {
   cy: number;
   color: string;
   rotation: number;
+  hidden: boolean;
+  inChute: boolean;
 }
 
 interface PhysBall {
@@ -169,7 +171,12 @@ export function ClawMachine({ members, phase, winner, onTrigger }: Props) {
   const winnerIdx = winner ? members.indexOf(winner) : -1;
   const [balls, setBalls] = useState<BallLayout[]>([]);
   const [buttonPressed, setButtonPressed] = useState(false);
-  const paperRotation = useMemo(() => (Math.random() * 10 - 5), [winner]);
+  const paperRotation = useMemo(() => {
+    if (!winner) return 0;
+    let h = 0;
+    for (let i = 0; i < winner.length; i++) h = (h * 31 + winner.charCodeAt(i)) | 0;
+    return ((Math.abs(h) % 1000) / 1000) * 10 - 5;
+  }, [winner]);
   const physRef = useRef<PhysBall[]>([]);
   const rafRef = useRef(0);
   const dispensingRef = useRef(false);
@@ -177,9 +184,11 @@ export function ClawMachine({ members, phase, winner, onTrigger }: Props) {
   const winnerIdxRef = useRef(-1);
   const dispensedRef = useRef(false);
   const phaseRef = useRef(phase);
-  phaseRef.current = phase;
 
-  winnerIdxRef.current = winnerIdx;
+  useEffect(() => {
+    phaseRef.current = phase;
+    winnerIdxRef.current = winnerIdx;
+  }, [phase, winnerIdx]);
 
   const runSim = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
@@ -265,6 +274,8 @@ export function ClawMachine({ members, phase, winner, onTrigger }: Props) {
         cy: b.y,
         color: BALL_COLORS[i % BALL_COLORS.length],
         rotation: b.rot,
+        hidden: i === wIdx && dispensedRef.current,
+        inChute: dispensing && i === wIdx && b.y > CHUTE_TOP - BALL_R,
       })));
 
       // Stop the sim once the winner has exited
@@ -286,7 +297,6 @@ export function ClawMachine({ members, phase, winner, onTrigger }: Props) {
   // Initialise / reset physics when members list changes
   useEffect(() => {
     if (members.length === 0) {
-      setBalls([]);
       physRef.current = [];
       return;
     }
@@ -441,11 +451,11 @@ export function ClawMachine({ members, phase, winner, onTrigger }: Props) {
         <circle cx="157" cy="37" r="3" fill="rgba(255,255,255,0.35)" />
 
         {/* ── Capsules inside the dome ── */}
-        {balls.map((ball, i) => {
+        {members.length > 0 && balls.map((ball, i) => {
           const isWinner = i === winnerIdx;
           const gone = isWinner && phase === 'done';
-          if (gone || (isWinner && dispensedRef.current)) return null;
-          const inChute = isWinner && dispensingRef.current && ball.cy > CHUTE_TOP - BALL_R;
+          if (gone || ball.hidden) return null;
+          const inChute = ball.inChute;
 
           return (
             <g

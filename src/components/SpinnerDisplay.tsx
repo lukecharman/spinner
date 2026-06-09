@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { WheelOfFortune } from './WheelOfFortune';
 import { AppearDisplay } from './AppearDisplay';
 import { ClawMachine } from './ClawMachine';
@@ -72,7 +72,9 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const baseRotation = useRef(0);
   const vizRef = useRef(viz);
-  vizRef.current = viz;
+  useEffect(() => {
+    vizRef.current = viz;
+  }, [viz]);
 
   const switchViz = useCallback((v: Visualization) => {
     setViz(v);
@@ -224,7 +226,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
     }
   }, [dragOffset, launchSpin, onSpin]);
 
-  const subtitle = useMemo(() => SUBTITLES[Math.floor(Math.random() * SUBTITLES.length)], []);
+  const [subtitle] = useState(() => SUBTITLES[Math.floor(Math.random() * SUBTITLES.length)]);
 
   return (
     <div className="spinner-section">

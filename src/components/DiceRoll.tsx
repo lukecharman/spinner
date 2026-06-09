@@ -57,9 +57,10 @@ export function DiceRoll({ members, phase, winner, onTrigger }: Props) {
 
   /* Physics loop */
   const simulate = useCallback((prevTime: number) => {
-    rafRef.current = requestAnimationFrame((now) => {
-      const dt = Math.min((now - prevTime) / 1000, 0.05); // cap at 50ms
-      const s = stateRef.current;
+    function frame(pt: number) {
+      rafRef.current = requestAnimationFrame((now) => {
+        const dt = Math.min((now - pt) / 1000, 0.05); // cap at 50ms
+        const s = stateRef.current;
       const { w, h } = getArenaSize();
       const half = DICE_SIZE / 2;
 
@@ -123,8 +124,10 @@ export function DiceRoll({ members, phase, winner, onTrigger }: Props) {
         return; // stop sim
       }
 
-      simulate(now);
-    });
+      frame(now);
+      });
+    }
+    frame(prevTime);
   }, [getArenaSize]);
 
   useEffect(() => {

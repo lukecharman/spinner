@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 
 type Phase = 'idle' | 'spinning' | 'done';
 
@@ -65,6 +65,70 @@ interface CardData {
   subtitle: string;
 }
 
+function generateCards(): CardData[] {
+  const usedTitles = new Set<number>();
+  const usedSymbols = new Set<number>();
+
+  const newCards: CardData[] = [];
+  for (let i = 0; i < 3; i++) {
+    const [title, ti] = pickRandom(TAROT_TITLES, usedTitles);
+    usedTitles.add(ti);
+    const [symbol, si] = pickRandom(TAROT_SYMBOLS, usedSymbols);
+    usedSymbols.add(si);
+    const [subtitle] = pickRandom(CARD_SUBTITLES);
+
+    newCards.push({ title, symbol, subtitle });
+  }
+
+  return newCards;
+}
+
+function randomCardIndex(): number {
+  return Math.floor(Math.random() * 3);
+}
+
+function pickWinnerIndices(chosen: number, availableCount: number): Set<number> {
+  // The chosen card is always a winner. If few people remain, extra cards also
+  // get the winner.
+  const winnerCardCount = availableCount >= 3 ? 1 : availableCount === 2 ? 2 : 3;
+  const indices = new Set<number>([chosen]);
+  while (indices.size < winnerCardCount) {
+    indices.add(randomCardIndex());
+  }
+  return indices;
+}
+
+function pickLoserNames(
+  winner: string,
+  winnerIndices: Set<number>,
+  members: string[],
+): Map<number, string> {
+  const names = new Map<number, string>();
+  const nonWinnerSlots = [0, 1, 2].filter(i => !winnerIndices.has(i));
+  if (nonWinnerSlots.length === 0) return names;
+
+  // Pick other members for the loser cards
+  const otherMembers = members.filter(m => m !== winner);
+  const pool = otherMembers.length >= nonWinnerSlots.length
+    ? otherMembers
+    : members; // fall back to full set if not enough others
+  const used = new Set<string>([winner]);
+
+  for (const slot of nonWinnerSlots) {
+    const available = pool.filter(m => !used.has(m));
+    if (available.length > 0) {
+      const pick = available[Math.floor(Math.random() * available.length)];
+      names.set(slot, pick);
+      used.add(pick);
+    } else {
+      // All exhausted, reuse from full set
+      const pick = members[Math.floor(Math.random() * members.length)];
+      names.set(slot, pick);
+    }
+  }
+  return names;
+}
+
 export function TarotCards({ members, phase, winner, onTrigger, onSkip }: Props) {
   const [cards, setCards] = useState<CardData[]>([]);
   const [chosenIndex, setChosenIndex] = useState<number | null>(null);
@@ -72,55 +136,47 @@ export function TarotCards({ members, phase, winner, onTrigger, onSkip }: Props)
   const [revealAll, setRevealAll] = useState(false);
   const [winnerIndices, setWinnerIndices] = useState<Set<number>>(new Set());
   const [loserNames, setLoserNames] = useState<Map<number, string>>(new Map());
-  const triggeredRef = useRef(false);
+  const [triggered, setTriggered] = useState(false);
 
-  // Generate 3 cards when phase transitions to idle
-  const generateCards = useCallback(() => {
-    const usedTitles = new Set<number>();
-    const usedSymbols = new Set<number>();
+  // Generate a fresh deck when idle without one (initial mount, or members
+  // arriving while idle).
+  if (phase === 'idle' && members.length > 0 && cards.length === 0) {
+    setCards(generateCards());
+  }
 
-    const newCards: CardData[] = [];
-    for (let i = 0; i < 3; i++) {
-      const [title, ti] = pickRandom(TAROT_TITLES, usedTitles);
-      usedTitles.add(ti);
-      const [symbol, si] = pickRandom(TAROT_SYMBOLS, usedSymbols);
-      usedSymbols.add(si);
-      const [subtitle] = pickRandom(CARD_SUBTITLES);
-
-      newCards.push({ title, symbol, subtitle });
-    }
-
-    setCards(newCards);
-    setChosenIndex(null);
-    setRevealAll(false);
-    setWinnerIndices(new Set());
-    setLoserNames(new Map());
-  }, []);
-
-  // When idle with members, generate fresh cards
-  useEffect(() => {
+  // Respond to phase transitions: reset for a new round on idle, or auto-pick a
+  // card when a spin is triggered remotely (no local click).
+  const [prevPhase, setPrevPhase] = useState<Phase>(phase);
+  if (phase !== prevPhase) {
+    setPrevPhase(phase);
     if (phase === 'idle' && members.length > 0) {
-      generateCards();
-      triggeredRef.current = false;
+      setCards(generateCards());
+      setChosenIndex(null);
+      setRevealAll(false);
+      setWinnerIndices(new Set());
+      setLoserNames(new Map());
+      setTriggered(false);
+    } else if (phase === 'spinning' && chosenIndex === null) {
+      setChosenIndex(randomCardIndex());
     }
-  }, [phase, members.length, generateCards]);
+  }
+
+  // Assign loser names once the winner is known.
+  const [prevWinner, setPrevWinner] = useState(winner);
+  if (winner !== prevWinner) {
+    setPrevWinner(winner);
+    if (phase === 'spinning' && winner && winnerIndices.size > 0) {
+      setLoserNames(pickLoserNames(winner, winnerIndices, members));
+    }
+  }
 
   // When phase becomes 'spinning', we're waiting for user to pick a card
   // The parent has already picked a winner — we just need to animate
 
   const handleCardClick = (index: number) => {
-    if (phase === 'idle' && !triggeredRef.current) {
-      // The chosen card is always a winner.
-      // If few people remain, extra cards also get the winner.
-      const availableCount = members.length;
-      const winnerCardCount = availableCount >= 3 ? 1 : availableCount === 2 ? 2 : 3;
-      const indices = new Set<number>([index]);
-      while (indices.size < winnerCardCount) {
-        indices.add(Math.floor(Math.random() * 3));
-      }
-      setWinnerIndices(indices);
-
-      triggeredRef.current = true;
+    if (phase === 'idle' && !triggered) {
+      setWinnerIndices(pickWinnerIndices(index, members.length));
+      setTriggered(true);
       onTrigger();
       setChosenIndex(index);
     }
@@ -136,43 +192,6 @@ export function TarotCards({ members, phase, winner, onTrigger, onSkip }: Props)
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [phase, chosenIndex]);
-
-  // Assign loser names once winner is known
-  useEffect(() => {
-    if (phase !== 'spinning' || !winner || winnerIndices.size === 0) return;
-    const nonWinnerSlots = [0, 1, 2].filter(i => !winnerIndices.has(i));
-    if (nonWinnerSlots.length === 0) return;
-
-    // Pick other members for the loser cards
-    const otherMembers = members.filter(m => m !== winner);
-    const pool = otherMembers.length >= nonWinnerSlots.length
-      ? otherMembers
-      : members; // fall back to full set if not enough others
-    const used = new Set<string>([winner]);
-    const names = new Map<number, string>();
-
-    for (const slot of nonWinnerSlots) {
-      const available = pool.filter(m => !used.has(m));
-      if (available.length > 0) {
-        const pick = available[Math.floor(Math.random() * available.length)];
-        names.set(slot, pick);
-        used.add(pick);
-      } else {
-        // All exhausted, reuse from full set
-        const pick = members[Math.floor(Math.random() * members.length)];
-        names.set(slot, pick);
-      }
-    }
-    setLoserNames(names);
-  }, [phase, winner, winnerIndices, members]);
-
-  // If we're in spinning phase but user hasn't chosen yet, auto-choose
-  useEffect(() => {
-    if (phase === 'spinning' && chosenIndex === null) {
-      // Pick a random card for remote spin events
-      setChosenIndex(Math.floor(Math.random() * 3));
-    }
   }, [phase, chosenIndex]);
 
   const showPrompt = phase === 'idle' && members.length > 0;

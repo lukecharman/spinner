@@ -49,39 +49,31 @@ export function useRoomSettings(roomId: string) {
 export type ThemeSetting = 'dark' | 'light' | 'system';
 export type Theme = 'dark' | 'light';
 
-function resolveTheme(setting: ThemeSetting): Theme {
-  if (setting === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return setting;
-}
-
 export function useTheme() {
   const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => {
     return (localStorage.getItem('spinner-theme') as ThemeSetting) || 'dark';
   });
 
-  const [resolved, setResolved] = useState<Theme>(() => resolveTheme(themeSetting));
+  const [systemPrefersDark, setSystemPrefersDark] = useState(
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
+  );
 
+  const resolved: Theme =
+    themeSetting === 'system' ? (systemPrefersDark ? 'dark' : 'light') : themeSetting;
+
+  // Apply theme to the document and persist the user's choice
   useEffect(() => {
-    const r = resolveTheme(themeSetting);
-    setResolved(r);
-    document.documentElement.setAttribute('data-theme', r);
+    document.documentElement.setAttribute('data-theme', resolved);
     localStorage.setItem('spinner-theme', themeSetting);
-  }, [themeSetting]);
+  }, [resolved, themeSetting]);
 
-  // Listen for OS theme changes when in 'system' mode
+  // Track OS theme changes (used when in 'system' mode)
   useEffect(() => {
-    if (themeSetting !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      const r = resolveTheme('system');
-      setResolved(r);
-      document.documentElement.setAttribute('data-theme', r);
-    };
+    const handler = () => setSystemPrefersDark(mq.matches);
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
-  }, [themeSetting]);
+  }, []);
 
   const toggleTheme = useCallback(() => {
     setThemeSetting(prev => prev === 'dark' ? 'light' : prev === 'light' ? 'system' : 'dark');

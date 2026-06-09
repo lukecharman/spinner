@@ -14,7 +14,7 @@ export function AppearDisplay({ members, phase, winner, onTrigger }: Props) {
 
   // Animate dots while "spinning"
   useEffect(() => {
-    if (phase !== 'spinning') { setDots(''); return; }
+    if (phase !== 'spinning') return;
     const id = setInterval(() => {
       setDots(prev => prev.length >= 3 ? '' : prev + '.');
     }, 300);
