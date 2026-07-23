@@ -4,15 +4,17 @@ import { AppearDisplay } from './AppearDisplay';
 import { ClawMachine } from './ClawMachine';
 import { TarotCards } from './TarotCards';
 import { Magic8Ball } from './Magic8Ball';
+import { VaultDisplay } from './VaultDisplay';
 import type { SpinEvent } from '../hooks/useSpinner';
 import type { SpinSelection } from '../hooks/spinnerState';
 
-export type Visualization = 'wheel' | 'appear' | 'claw' | 'tarot' | '8ball';
+export type Visualization = 'wheel' | 'appear' | 'claw' | 'vault' | 'tarot' | '8ball';
 
 const VIZ_LABELS: Record<Visualization, string> = {
   wheel: 'Wheel',
   appear: 'Appear',
   claw: 'Capsule',
+  vault: 'Vault',
   tarot: 'Tarot',
   '8ball': '8-Ball',
 };
@@ -26,7 +28,7 @@ function loadVisualization(): Visualization {
   try {
     const saved = localStorage.getItem('spinner-viz');
     if (
-      (saved === 'wheel' || saved === 'appear' || saved === 'claw' || saved === 'tarot' || saved === '8ball')
+      (saved === 'wheel' || saved === 'appear' || saved === 'claw' || saved === 'vault' || saved === 'tarot' || saved === '8ball')
       && !HIDDEN_VIZ.has(saved)
     ) {
       return saved;
@@ -135,7 +137,14 @@ export function SpinnerDisplay({ members, activePickId, onSpin, onRespin, onUndo
     setPhase('spinning');
     setRotation(targetRotation);
 
-    const durations: Record<Visualization, number> = { wheel: 7300, appear: 1000, claw: 7000, tarot: 2500, '8ball': 3000 };
+    const durations: Record<Visualization, number> = {
+      wheel: 7300,
+      appear: 1000,
+      claw: 7000,
+      vault: 5700,
+      tarot: 2500,
+      '8ball': 3000,
+    };
     const duration = durations[vizRef.current] ?? 4000;
     const t0 = setTimeout(() => {
       baseRotation.current = targetRotation;
@@ -331,6 +340,17 @@ export function SpinnerDisplay({ members, activePickId, onSpin, onRespin, onUndo
       {viz === 'claw' && (
         <div className="stage claw-stage">
           <ClawMachine
+            members={members}
+            phase={displayedPhase}
+            winner={winner}
+            onTrigger={spin}
+          />
+        </div>
+      )}
+
+      {viz === 'vault' && (
+        <div className="stage vault-stage">
+          <VaultDisplay
             members={members}
             phase={displayedPhase}
             winner={winner}
