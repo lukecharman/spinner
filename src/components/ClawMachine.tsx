@@ -167,6 +167,21 @@ function resolveBallCollision(a: PhysBall, b: PhysBall) {
   }
 }
 
+function createPhysicsBalls(count: number): PhysBall[] {
+  return Array.from({ length: count }, () => {
+    const y = DOME_TOP + BALL_R + Math.random() * (DOME_BOTTOM - DOME_TOP - BALL_R * 2);
+    const hw = domeHalfWidth(y) - BALL_R - 2;
+    const x = GLOBE_CX + (Math.random() - 0.5) * 2 * Math.max(hw, 0);
+    return {
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 40,
+      vy: 0,
+      rot: Math.random() * 360,
+    };
+  });
+}
+
 export function ClawMachine({ members, phase, winner, onTrigger }: Props) {
   const winnerIdx = winner ? members.indexOf(winner) : -1;
   const [balls, setBalls] = useState<BallLayout[]>([]);
@@ -305,18 +320,7 @@ export function ClawMachine({ members, phase, winner, onTrigger }: Props) {
     if (phaseRef.current === 'spinning' || phaseRef.current === 'done') return;
 
     // Scatter balls randomly throughout the dome, let them settle under gravity
-    physRef.current = members.map(() => {
-      const y = DOME_TOP + BALL_R + Math.random() * (DOME_BOTTOM - DOME_TOP - BALL_R * 2);
-      const hw = domeHalfWidth(y) - BALL_R - 2;
-      const x = GLOBE_CX + (Math.random() - 0.5) * 2 * Math.max(hw, 0);
-      return {
-        x,
-        y,
-        vx: (Math.random() - 0.5) * 40,
-        vy: 0,
-        rot: Math.random() * 360,
-      };
-    });
+    physRef.current = createPhysicsBalls(members.length);
 
     // Let them settle gently under gravity (no initial velocity)
     runSim();
@@ -330,6 +334,13 @@ export function ClawMachine({ members, phase, winner, onTrigger }: Props) {
     dispensingRef.current = false;
     guidingRef.current = false;
     dispensedRef.current = false;
+
+    if (
+      physRef.current.length !== members.length
+      || physRef.current.some(ball => ball.y > DOME_BOTTOM || ball.y < DOME_TOP)
+    ) {
+      physRef.current = createPhysicsBalls(members.length);
+    }
 
     // Three big jostles over 5 seconds
     const jostle = () => {
@@ -368,7 +379,7 @@ export function ClawMachine({ members, phase, winner, onTrigger }: Props) {
       clearTimeout(dispenseTimer);
       cancelAnimationFrame(rafRef.current);
     };
-  }, [phase, winnerIdx, runSim]);
+  }, [members.length, phase, winnerIdx, runSim]);
 
   // Reset state when back to idle
   useEffect(() => {

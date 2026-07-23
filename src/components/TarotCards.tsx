@@ -157,7 +157,13 @@ export function TarotCards({ members, phase, winner, onTrigger, onSkip }: Props)
       setLoserNames(new Map());
       setTriggered(false);
     } else if (phase === 'spinning' && chosenIndex === null) {
-      setChosenIndex(randomCardIndex());
+      const index = randomCardIndex();
+      const indices = pickWinnerIndices(index, members.length);
+      setChosenIndex(index);
+      setWinnerIndices(indices);
+      if (winner) {
+        setLoserNames(pickLoserNames(winner, indices, members));
+      }
     }
   }
 

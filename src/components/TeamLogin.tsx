@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { hashRoomCode } from '../room';
 
 interface Props {
   onJoin: (roomId: string, roomName: string) => void;
@@ -75,27 +76,27 @@ function generateCode(): string {
   return `${pick()}-${pick()}-${pick()}`;
 }
 
-async function hashCode(code: string): Promise<string> {
-  const data = new TextEncoder().encode(code.trim().toLowerCase());
-  const buf = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(buf))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-    .slice(0, 16);
-}
-
 export function TeamLogin({ onJoin }: Props) {
   const generated = useMemo(() => generateCode(), []);
   const [code, setCode] = useState(generated);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = code.trim();
     if (!trimmed) return;
     setLoading(true);
-    const roomId = await hashCode(trimmed);
-    onJoin(roomId, trimmed);
+    setError(null);
+
+    try {
+      const roomId = await hashRoomCode(trimmed);
+      onJoin(roomId, trimmed);
+    } catch (cause) {
+      console.error('Unable to join the room.', cause);
+      setError('Unable to join this room. Please try again.');
+      setLoading(false);
+    }
   }
 
   return (
@@ -124,6 +125,7 @@ export function TeamLogin({ onJoin }: Props) {
             {loading ? 'Joining…' : 'Join'}
           </button>
         </form>
+        {error && <p className="login-error" role="alert">{error}</p>}
         <p className="login-hint">
           Use the generated code for a new room, or enter an existing one to rejoin your team.
         </p>

@@ -1,28 +1,28 @@
 # The Load Balancer 🎡
 
-A "whose turn is it to host standup" randomiser for teams.
+A shared “whose turn is it to host?” randomizer for teams.
 
 ## Features
 
-- **Team members** — Add and remove names from your team list.
-- **Fair rotation** — Tracks who has already hosted in the current cycle. Once everyone has had a turn, the cycle resets automatically, so no one hosts twice before everyone has gone.
-- **Animated spinner** — Hit **Spin!** for a ~4-second slot-machine animation where names morph through the list before landing on the lucky host.
-- **Persistent state** — Your team list and cycle progress are saved in `localStorage` so they survive page refreshes.
+- **Shared team rooms** — Join with a room code or a `?room=<code>` link. Each room has isolated Firebase-backed members, cycle progress, spins, and settings.
+- **Fair rotation** — A member cannot be selected twice in one cycle. A completed cycle remains visible until the next spin starts a new cycle.
+- **Persistent state** — Members and turn history survive refreshes and stay synchronized across connected browsers.
+- **Animated selectors** — Choose from the wheel, instant reveal, capsule machine, or tarot cards.
+- **Safe resets and re-spins** — Reset clears only the current room’s cycle, while a re-spin atomically replaces the latest selection.
 
 ## Getting started
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-Then open [http://localhost:5173](http://localhost:5173) in your browser.
+Vite serves the app under its configured `/spinner/` base path.
 
 ## Usage
 
-1. Add your team members using the input field on the right.
-2. Click **Spin!** to pick today's standup host.
-3. Members who have already hosted this cycle are shown with a **✓** badge and appear dimmed.
-4. Available members are highlighted with a purple dot.
-5. Once everyone has hosted once, the cycle resets automatically.
-6. Use **Reset Cycle** to manually restart the rotation at any time.
+1. Create or enter a room code and share it with the team.
+2. Add or remove team members in the side panel.
+3. Trigger the selected visualization to choose the next host.
+4. Use **Reset Cycle** to make everyone eligible again.
+5. Use **Switch Room** to leave without changing that room’s saved data.

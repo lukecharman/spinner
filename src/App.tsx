@@ -5,17 +5,36 @@ import { useRoomSettings, useTheme, ACCENT_COLORS } from './hooks/useRoomSetting
 import { SpinnerDisplay } from './components/SpinnerDisplay';
 import { MemberManager } from './components/MemberManager';
 import { TeamLogin } from './components/TeamLogin';
+import { hashRoomCode, isRoomId, normalizeRoomCode } from './room';
 
 const STORAGE_KEY = 'spinner-room';
 const ROOM_QUERY_PARAM = 'room';
 
-function getStoredRoom(): { roomId: string; roomName: string } | null {
+interface Room {
+  roomId: string;
+  roomName: string;
+}
+
+function getStoredRoom(): Room | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed.roomId && parsed.roomName) return parsed;
-  } catch { /* ignore */ }
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      parsed
+      && typeof parsed === 'object'
+      && 'roomId' in parsed
+      && 'roomName' in parsed
+      && typeof parsed.roomId === 'string'
+      && isRoomId(parsed.roomId)
+      && typeof parsed.roomName === 'string'
+      && parsed.roomName.trim()
+    ) {
+      return { roomId: parsed.roomId, roomName: parsed.roomName.trim() };
+    }
+  } catch (error) {
+    console.warn('Unable to read the saved room.', error);
+  }
   return null;
 }
 
@@ -24,15 +43,6 @@ function getRoomCodeFromUrl(): string | null {
   const params = new URLSearchParams(window.location.search);
   const code = params.get(ROOM_QUERY_PARAM);
   return code && code.trim() ? code.trim() : null;
-}
-
-async function hashRoomCode(code: string): Promise<string> {
-  const data = new TextEncoder().encode(code.trim().toLowerCase());
-  const buf = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(buf))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-    .slice(0, 16);
 }
 
 function setRoomCodeInUrl(code: string | null) {
@@ -48,11 +58,15 @@ function setRoomCodeInUrl(code: string | null) {
 
 function SpinnerApp({ roomId, roomName, onLeave }: { roomId: string; roomName: string; onLeave: () => void }) {
   const {
-    state, available, loaded, pickNext, confirmPick, skipPick,
+    state, available, loaded, syncError, pickNext, respin, undoPick,
     addMember, removeMember, resetCycle,
     broadcastSpin, remoteSpinEvent, clearRemoteSpin,
   } = useSpinner(roomId);
-  const { accentColor, changeAccentColor } = useRoomSettings(roomId);
+  const {
+    accentColor,
+    changeAccentColor,
+    syncError: settingsError,
+  } = useRoomSettings(roomId);
   const { themeSetting, toggleTheme } = useTheme();
 
   if (!loaded) {
@@ -82,12 +96,16 @@ function SpinnerApp({ roomId, roomName, onLeave }: { roomId: string; roomName: s
           <button className="room-leave-btn" onClick={onLeave}>Switch Room</button>
         </div>
       </div>
+      {(syncError || settingsError) && (
+        <div className="sync-error" role="alert">{syncError ?? settingsError}</div>
+      )}
       <div className="main-layout">
         <SpinnerDisplay
           members={state.members}
+          activePickId={state.lastPickId}
           onSpin={pickNext}
-          onSkip={skipPick}
-          onConfirm={confirmPick}
+          onRespin={respin}
+          onUndo={undoPick}
           onBroadcastSpin={broadcastSpin}
           remoteSpinEvent={remoteSpinEvent}
           onClearRemoteSpin={clearRemoteSpin}
@@ -109,17 +127,30 @@ function SpinnerApp({ roomId, roomName, onLeave }: { roomId: string; roomName: s
 }
 
 function App() {
-  const [room, setRoom] = useState(getStoredRoom);
+  const [hasInitialRoomLink] = useState(() => getRoomCodeFromUrl() !== null);
+  const [room, setRoom] = useState<Room | null>(() => (
+    hasInitialRoomLink ? null : getStoredRoom()
+  ));
+  const [resolvingRoomLink, setResolvingRoomLink] = useState(hasInitialRoomLink);
 
   const handleJoin = useCallback((roomId: string, roomName: string) => {
-    const data = { roomId, roomName };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const data = { roomId, roomName: roomName.trim() };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (error) {
+      console.warn('Unable to save the current room.', error);
+    }
     setRoom(data);
-    setRoomCodeInUrl(roomName);
+    setResolvingRoomLink(false);
+    setRoomCodeInUrl(data.roomName);
   }, []);
 
   const handleLeave = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.warn('Unable to clear the saved room.', error);
+    }
     setRoom(null);
     setRoomCodeInUrl(null);
   }, []);
@@ -132,7 +163,7 @@ function App() {
       if (room) setRoomCodeInUrl(room.roomName);
       return;
     }
-    if (room && room.roomName.trim().toLowerCase() === urlCode.toLowerCase()) {
+    if (room && normalizeRoomCode(room.roomName) === normalizeRoomCode(urlCode)) {
       setRoomCodeInUrl(room.roomName);
       return;
     }
@@ -140,16 +171,30 @@ function App() {
     hashRoomCode(urlCode).then(roomId => {
       if (cancelled) return;
       handleJoin(roomId, urlCode);
+    }).catch(error => {
+      if (cancelled) return;
+      console.error('Unable to open the linked room.', error);
+      setResolvingRoomLink(false);
     });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleJoin, room]);
+
+  if (resolvingRoomLink) {
+    return <div className="app loading-screen">Loading room…</div>;
+  }
 
   if (!room) {
     return <TeamLogin onJoin={handleJoin} />;
   }
 
-  return <SpinnerApp roomId={room.roomId} roomName={room.roomName} onLeave={handleLeave} />;
+  return (
+    <SpinnerApp
+      key={room.roomId}
+      roomId={room.roomId}
+      roomName={room.roomName}
+      onLeave={handleLeave}
+    />
+  );
 }
 
 export default App;

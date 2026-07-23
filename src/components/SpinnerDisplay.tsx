@@ -5,6 +5,7 @@ import { ClawMachine } from './ClawMachine';
 import { TarotCards } from './TarotCards';
 import { Magic8Ball } from './Magic8Ball';
 import type { SpinEvent } from '../hooks/useSpinner';
+import type { SpinSelection } from '../hooks/spinnerState';
 
 export type Visualization = 'wheel' | 'appear' | 'claw' | 'tarot' | '8ball';
 
@@ -18,6 +19,29 @@ const VIZ_LABELS: Record<Visualization, string> = {
 
 /** Visualizations hidden from the UI (still functional, just not selectable) */
 const HIDDEN_VIZ: Set<Visualization> = new Set(['8ball']);
+
+function loadVisualization(): Visualization {
+  try {
+    const saved = localStorage.getItem('spinner-viz');
+    if (
+      (saved === 'wheel' || saved === 'appear' || saved === 'claw' || saved === 'tarot' || saved === '8ball')
+      && !HIDDEN_VIZ.has(saved)
+    ) {
+      return saved;
+    }
+  } catch (error) {
+    console.warn('Unable to read the saved visualization.', error);
+  }
+  return 'wheel';
+}
+
+function saveVisualization(visualization: Visualization): void {
+  try {
+    localStorage.setItem('spinner-viz', visualization);
+  } catch (error) {
+    console.warn('Unable to save the selected visualization.', error);
+  }
+}
 
 const SUBTITLES = [
   'Evenly distributing discomfort since 2026.',
@@ -44,9 +68,10 @@ const SUBTITLES = [
 
 interface Props {
   members: string[];
-  onSpin: () => string | null;
-  onSkip: () => string | null;
-  onConfirm: (name: string) => void;
+  activePickId: string | null;
+  onSpin: () => Promise<SpinSelection | null>;
+  onRespin: (selection: SpinSelection) => Promise<SpinSelection | null>;
+  onUndo: (selection: SpinSelection) => Promise<boolean>;
   onBroadcastSpin: (event: Omit<SpinEvent, 'tabId' | 'timestamp'>) => void;
   remoteSpinEvent: SpinEvent | null;
   onClearRemoteSpin: () => void;
@@ -54,44 +79,44 @@ interface Props {
 
 type Phase = 'idle' | 'spinning' | 'done';
 
-export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcastSpin, remoteSpinEvent, onClearRemoteSpin }: Props) {
-  const [viz, setViz] = useState<Visualization>(() => {
-    const saved = localStorage.getItem('spinner-viz');
-    if (saved === 'appear' || saved === 'claw' || saved === 'tarot' || saved === '8ball') {
-      if (!HIDDEN_VIZ.has(saved)) return saved;
-    }
-    return 'wheel';
-  });
+export function SpinnerDisplay({ members, activePickId, onSpin, onRespin, onUndo, onBroadcastSpin, remoteSpinEvent, onClearRemoteSpin }: Props) {
+  const [viz, setViz] = useState<Visualization>(loadVisualization);
   const [phase, setPhase] = useState<Phase>('idle');
-  const [winner, setWinner] = useState<string | null>(null);
+  const [selection, setSelection] = useState<SpinSelection | null>(null);
   const [rotation, setRotation] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const startingRef = useRef(false);
   const baseRotation = useRef(0);
   const vizRef = useRef(viz);
+  const selectionIsCurrent = !selection || selection.pickId === activePickId;
+  const displayedPhase = selectionIsCurrent ? phase : 'idle';
+  const winner = selectionIsCurrent ? selection?.winner ?? null : null;
   useEffect(() => {
     vizRef.current = viz;
   }, [viz]);
 
-  const switchViz = useCallback((v: Visualization) => {
-    setViz(v);
-    localStorage.setItem('spinner-viz', v);
-    setPhase('idle');
-    setWinner(null);
+  const clearTimeouts = useCallback(() => {
+    timeoutsRef.current.forEach(clearTimeout);
+    timeoutsRef.current = [];
   }, []);
+
+  const switchViz = useCallback((v: Visualization) => {
+    if (displayedPhase === 'spinning') return;
+    clearTimeouts();
+    setViz(v);
+    saveVisualization(v);
+    setPhase('idle');
+    setSelection(null);
+  }, [clearTimeouts, displayedPhase]);
 
   useEffect(() => () => { timeoutsRef.current.forEach(clearTimeout); }, []);
 
-  function clearTimeouts() {
-    timeoutsRef.current.forEach(clearTimeout);
-    timeoutsRef.current = [];
-  }
-
   /** Animate the wheel to a specific target rotation */
-  const playSpin = useCallback((targetRotation: number, picked: string, isSkip: boolean) => {
+  const playSpin = useCallback((targetRotation: number, picked: SpinSelection) => {
     clearTimeouts();
-    setWinner(picked);
+    setSelection(picked);
 
     // Absorb any drag offset into the base before spinning
     const currentBase = baseRotation.current + dragOffset;
@@ -107,15 +132,9 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
     const t0 = setTimeout(() => {
       baseRotation.current = targetRotation;
       setPhase('done');
-      if (!isSkip) {
-        // Delay confirm for claw viz so the paper reveal isn't spoiled
-        const confirmDelay = vizRef.current === 'claw' ? 1800 : 0;
-        const t1 = setTimeout(() => onConfirm(picked), confirmDelay);
-        timeoutsRef.current.push(t1);
-      }
     }, duration);
     timeoutsRef.current.push(t0);
-  }, [dragOffset, onConfirm]);
+  }, [clearTimeouts, dragOffset]);
 
   /** Compute target rotation for a picked winner */
   const computeTarget = useCallback((picked: string, flickVelocity: number): number => {
@@ -148,16 +167,30 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
   }, [members, dragOffset]);
 
   /** Launch the spin animation to land on a picked winner */
-  const launchSpin = useCallback((picker: () => string | null, flickVelocity: number, isSkip: boolean) => {
-    if (members.length === 0) return;
+  const launchSpin = useCallback(async (
+    picker: () => Promise<SpinSelection | null>,
+    flickVelocity: number,
+  ) => {
+    if (members.length === 0 || startingRef.current) return;
 
-    const picked = picker();
-    if (!picked) return;
+    startingRef.current = true;
+    const previousPhase = displayedPhase;
+    setPhase('spinning');
 
-    const targetRotation = computeTarget(picked, flickVelocity);
-    onBroadcastSpin({ targetRotation, winner: picked, isSkip });
-    playSpin(targetRotation, picked, isSkip);
-  }, [members, computeTarget, playSpin, onBroadcastSpin]);
+    try {
+      const picked = await picker();
+      if (!picked) {
+        setPhase(previousPhase);
+        return;
+      }
+
+      const targetRotation = computeTarget(picked.winner, flickVelocity);
+      onBroadcastSpin({ targetRotation, ...picked });
+      playSpin(targetRotation, picked);
+    } finally {
+      startingRef.current = false;
+    }
+  }, [members, displayedPhase, computeTarget, playSpin, onBroadcastSpin]);
 
   // Listen for remote spin events
   useEffect(() => {
@@ -173,56 +206,62 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
     // Add several full spins so it looks dramatic
     const localTarget = currentBase + delta + 360 * 5;
 
-    playSpin(localTarget, remoteSpinEvent.winner, remoteSpinEvent.isSkip);
+    playSpin(localTarget, {
+      winner: remoteSpinEvent.winner,
+      pickId: remoteSpinEvent.pickId,
+    });
     onClearRemoteSpin();
   }, [remoteSpinEvent, dragOffset, playSpin, onClearRemoteSpin]);
 
   const spin = useCallback(() => {
-    if (phase === 'spinning') return;
-    if (phase === 'done') {
-      // Re-spin: undo previous pick via onSkip, but confirm the new winner
-      launchSpin(onSkip, 300, false);
+    if (displayedPhase === 'spinning') return;
+    if (displayedPhase === 'done' && selection) {
+      void launchSpin(() => onRespin(selection), 300);
       return;
     }
-    launchSpin(onSpin, 300, false);
-  }, [phase, launchSpin, onSpin, onSkip]);
+    void launchSpin(onSpin, 300);
+  }, [displayedPhase, selection, launchSpin, onSpin, onRespin]);
 
   const tarotSkip = useCallback(() => {
-    if (phase === 'spinning') return;
-    // Undo the pick
-    onSkip();
-    // Reset to idle so cards re-deal face-down
+    if (displayedPhase === 'spinning' || !selection || startingRef.current) return;
+    void onUndo(selection);
     setPhase('idle');
-    setWinner(null);
-  }, [phase, onSkip]);
+    setSelection(null);
+  }, [displayedPhase, selection, onUndo]);
 
   // Drag handlers passed to the wheel
   const handleDragStart = useCallback(() => {
-    if (phase === 'spinning') return;
+    if (displayedPhase === 'spinning') return;
     setIsDragging(true);
     setDragOffset(0);
-  }, [phase]);
+  }, [displayedPhase]);
 
   const handleDragMove = useCallback((angleDelta: number) => {
     setDragOffset(prev => prev + angleDelta);
   }, []);
 
   const handleDragEnd = useCallback((velocity: number) => {
-    const picker = phase === 'done' ? onSkip : onSpin;
+    const picker = displayedPhase === 'done' && selection
+      ? () => onRespin(selection)
+      : onSpin;
     if (Math.abs(velocity) > 60) {
-      launchSpin(picker, velocity, false);
+      void launchSpin(picker, velocity);
     } else {
       const absOffset = Math.abs(dragOffset);
-      baseRotation.current += dragOffset;
-      setDragOffset(0);
-      setIsDragging(false);
 
       if (absOffset < 5) {
-        launchSpin(picker, 300, false);
+        setIsDragging(false);
+        void launchSpin(picker, 300);
+        return;
       }
-      // Otherwise just leave it where the user dragged it
+
+      const settledRotation = baseRotation.current + dragOffset;
+      baseRotation.current = settledRotation;
+      setRotation(settledRotation);
+      setDragOffset(0);
+      setIsDragging(false);
     }
-  }, [dragOffset, launchSpin, onSpin]);
+  }, [displayedPhase, selection, dragOffset, launchSpin, onSpin, onRespin]);
 
   const [subtitle] = useState(() => SUBTITLES[Math.floor(Math.random() * SUBTITLES.length)]);
 
@@ -237,6 +276,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
             key={v}
             className={`viz-btn ${v === viz ? 'active' : ''}`}
             onClick={() => switchViz(v)}
+            disabled={displayedPhase === 'spinning'}
           >
             {VIZ_LABELS[v]}
           </button>
@@ -250,7 +290,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
             rotation={rotation}
             dragOffset={dragOffset}
             isDragging={isDragging}
-            phase={phase}
+            phase={displayedPhase}
             winner={winner}
             onSpin={spin}
             onDragStart={handleDragStart}
@@ -264,7 +304,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
         <div className="stage appear-stage">
           <AppearDisplay
             members={members}
-            phase={phase}
+            phase={displayedPhase}
             winner={winner}
             onTrigger={spin}
           />
@@ -275,7 +315,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
         <div className="stage claw-stage">
           <ClawMachine
             members={members}
-            phase={phase}
+            phase={displayedPhase}
             winner={winner}
             onTrigger={spin}
           />
@@ -286,7 +326,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
         <div className="stage tarot-stage">
           <TarotCards
             members={members}
-            phase={phase}
+            phase={displayedPhase}
             winner={winner}
             onTrigger={spin}
             onSkip={tarotSkip}
@@ -298,7 +338,7 @@ export function SpinnerDisplay({ members, onSpin, onSkip, onConfirm, onBroadcast
         <div className="stage magic8-stage">
           <Magic8Ball
             members={members}
-            phase={phase}
+            phase={displayedPhase}
             winner={winner}
             onTrigger={spin}
           />
