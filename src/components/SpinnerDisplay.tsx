@@ -6,10 +6,11 @@ import { TarotCards } from './TarotCards';
 import { Magic8Ball } from './Magic8Ball';
 import { VaultDisplay } from './VaultDisplay';
 import { AlgorithmDisplay } from './AlgorithmDisplay';
+import { UfoDisplay } from './UfoDisplay';
 import type { SpinEvent } from '../hooks/useSpinner';
 import type { SpinSelection } from '../hooks/spinnerState';
 
-export type Visualization = 'wheel' | 'appear' | 'algorithm' | 'claw' | 'vault' | 'tarot' | '8ball';
+export type Visualization = 'wheel' | 'appear' | 'algorithm' | 'claw' | 'vault' | 'ufo' | 'tarot' | '8ball';
 
 const VIZ_LABELS: Record<Visualization, string> = {
   wheel: 'Wheel',
@@ -17,6 +18,7 @@ const VIZ_LABELS: Record<Visualization, string> = {
   algorithm: 'Algorithm',
   claw: 'Capsule',
   vault: 'Vault',
+  ufo: 'UFO',
   tarot: 'Tarot',
   '8ball': '8-Ball',
 };
@@ -30,7 +32,7 @@ function loadVisualization(): Visualization {
   try {
     const saved = localStorage.getItem('spinner-viz');
     if (
-      (saved === 'wheel' || saved === 'appear' || saved === 'algorithm' || saved === 'claw' || saved === 'vault' || saved === 'tarot' || saved === '8ball')
+      (saved === 'wheel' || saved === 'appear' || saved === 'algorithm' || saved === 'claw' || saved === 'vault' || saved === 'ufo' || saved === 'tarot' || saved === '8ball')
       && !HIDDEN_VIZ.has(saved)
     ) {
       return saved;
@@ -145,6 +147,7 @@ export function SpinnerDisplay({ members, activePickId, onSpin, onRespin, onUndo
       algorithm: 4600,
       claw: 7000,
       vault: 5700,
+      ufo: 6300,
       tarot: 2500,
       '8ball': 3000,
     };
@@ -365,6 +368,17 @@ export function SpinnerDisplay({ members, activePickId, onSpin, onRespin, onUndo
       {viz === 'vault' && (
         <div className="stage vault-stage">
           <VaultDisplay
+            members={members}
+            phase={displayedPhase}
+            winner={winner}
+            onTrigger={spin}
+          />
+        </div>
+      )}
+
+      {viz === 'ufo' && (
+        <div className="stage ufo-stage">
+          <UfoDisplay
             members={members}
             phase={displayedPhase}
             winner={winner}
