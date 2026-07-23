@@ -685,6 +685,1155 @@
   }
 }
 
+/* ── UFO abduction ───────────────────────────────────────── */
+.ufo-stage {
+  container-type: size;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ufo-display {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ufo-trigger {
+  display: block;
+  width: min(100%, 980px);
+  min-height: 0;
+  flex: 1;
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 14px;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.ufo-trigger:disabled {
+  cursor: default;
+}
+
+.ufo-scene {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid #34315d;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(111, 92, 198, 0.28), transparent 33%),
+    linear-gradient(to bottom, #090922 0%, #16133d 52%, #29205a 76%, #191735 100%);
+  box-shadow:
+    inset 0 0 5rem rgba(0, 0, 0, 0.34),
+    0 0.9rem 2.2rem rgba(0, 0, 0, 0.27);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ufo-trigger:hover:not(:disabled) .ufo-scene,
+.ufo-trigger:focus-visible .ufo-scene {
+  border-color: var(--accent-border);
+  box-shadow:
+    inset 0 0 5rem rgba(0, 0, 0, 0.34),
+    0 0 0 3px var(--accent-bg),
+    0 0.9rem 2.2rem rgba(0, 0, 0, 0.27);
+}
+
+.ufo-stars,
+.ufo-star {
+  position: absolute;
+  display: block;
+}
+
+.ufo-stars {
+  inset: 0;
+}
+
+.ufo-star {
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 5px rgba(218, 230, 255, 0.9);
+  animation: ufo-star-twinkle 2.8s ease-in-out infinite;
+}
+
+.ufo-moon {
+  position: absolute;
+  top: 10%;
+  right: 7%;
+  display: block;
+  width: clamp(42px, 8cqw, 72px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #dbddc6;
+  box-shadow:
+    inset -0.7rem -0.45rem 0 #b7b99f,
+    0 0 1.8rem rgba(235, 237, 209, 0.35);
+}
+
+.ufo-moon > span {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: rgba(126, 128, 112, 0.28);
+}
+
+.ufo-moon > span:nth-child(1) {
+  top: 22%;
+  left: 20%;
+  width: 24%;
+  height: 24%;
+}
+
+.ufo-moon > span:nth-child(2) {
+  right: 18%;
+  bottom: 25%;
+  width: 18%;
+  height: 18%;
+}
+
+.ufo-moon > span:nth-child(3) {
+  bottom: 13%;
+  left: 30%;
+  width: 12%;
+  height: 12%;
+}
+
+.ufo-agency-badge {
+  position: absolute;
+  top: 4%;
+  left: 2.5%;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid rgba(158, 243, 130, 0.3);
+  border-radius: 6px;
+  background: rgba(4, 11, 20, 0.58);
+  color: #b6f99f;
+  font-family: var(--mono);
+  font-size: clamp(0.48rem, 1.25cqw, 0.68rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.ufo-agency-badge > span {
+  color: rgba(220, 255, 208, 0.55);
+  font-size: 0.65em;
+  letter-spacing: 0.08em;
+}
+
+.ufo-speech {
+  position: absolute;
+  top: 6%;
+  left: calc(50% + clamp(92px, 17cqw, 155px));
+  z-index: 8;
+  display: block;
+  width: max-content;
+  max-width: min(36%, 270px);
+  box-sizing: border-box;
+  padding: clamp(0.45rem, 1.5cqw, 0.75rem) clamp(0.55rem, 1.8cqw, 0.9rem);
+  border: 2px solid #28233d;
+  border-radius: 13px 13px 13px 3px;
+  background: #fff;
+  color: #27223b;
+  filter: drop-shadow(0 5px 7px rgba(0, 0, 0, 0.25));
+  font-size: clamp(0.66rem, 1.75cqw, 0.94rem);
+  font-weight: 800;
+  line-height: 1.25;
+  animation: ufo-bubble-pop 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ufo-speech::after {
+  content: '';
+  position: absolute;
+  bottom: -13px;
+  left: -2px;
+  width: 17px;
+  height: 17px;
+  border-bottom: 2px solid #28233d;
+  border-left: 2px solid #28233d;
+  background: #fff;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.ufo-beam {
+  position: absolute;
+  top: 39%;
+  bottom: 12%;
+  left: 50%;
+  z-index: 2;
+  display: block;
+  width: clamp(90px, 24cqw, 190px);
+  opacity: 0;
+  background:
+    linear-gradient(
+      to right,
+      transparent 0%,
+      rgba(190, 255, 164, 0.16) 20%,
+      rgba(190, 255, 164, 0.5) 50%,
+      rgba(190, 255, 164, 0.16) 80%,
+      transparent 100%
+    );
+  filter: drop-shadow(0 0 0.9rem rgba(170, 255, 137, 0.65));
+  clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.ufo-spinning .ufo-beam {
+  opacity: 0.28;
+  animation: ufo-beam-search 0.64s steps(2, end) infinite;
+}
+
+.ufo-locked .ufo-beam,
+.ufo-done .ufo-beam {
+  opacity: 0.86;
+  animation: ufo-beam-lock 0.52s ease-in-out infinite alternate;
+}
+
+.ufo-beam-particle {
+  position: absolute;
+  bottom: 2%;
+  left: var(--particle-x);
+  display: block;
+  width: var(--particle-size);
+  height: var(--particle-size);
+  border-radius: 50%;
+  opacity: 0;
+  background: #e4ffd8;
+  box-shadow: 0 0 7px #c2ffa8;
+}
+
+.ufo-locked .ufo-beam-particle,
+.ufo-done .ufo-beam-particle {
+  animation: ufo-particle-rise 1.25s var(--particle-delay) linear infinite;
+}
+
+.ufo-particle-one {
+  --particle-x: 23%;
+  --particle-size: 4px;
+  --particle-delay: -0.15s;
+}
+
+.ufo-particle-two {
+  --particle-x: 44%;
+  --particle-size: 6px;
+  --particle-delay: -0.72s;
+}
+
+.ufo-particle-three {
+  --particle-x: 65%;
+  --particle-size: 3px;
+  --particle-delay: -1.05s;
+}
+
+.ufo-particle-four {
+  --particle-x: 78%;
+  --particle-size: 5px;
+  --particle-delay: -0.42s;
+}
+
+.ufo-craft {
+  position: absolute;
+  top: 19%;
+  left: 50%;
+  z-index: 6;
+  display: block;
+  width: clamp(165px, 37cqw, 280px);
+  aspect-ratio: 2.05;
+  filter: drop-shadow(0 0.8rem 0.8rem rgba(0, 0, 0, 0.38));
+  transform: translateX(-50%);
+  animation: ufo-craft-float 2.5s ease-in-out infinite;
+}
+
+.ufo-spinning .ufo-craft {
+  animation: ufo-craft-scan 0.64s ease-in-out infinite;
+}
+
+.ufo-locked .ufo-craft {
+  animation: ufo-craft-lock 0.22s linear infinite;
+}
+
+.ufo-done .ufo-craft {
+  animation: ufo-craft-celebrate 0.85s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ufo-dome {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  display: block;
+  width: 54%;
+  height: 66%;
+  overflow: hidden;
+  border: 2px solid rgba(210, 239, 255, 0.65);
+  border-radius: 50% 50% 34% 34%;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.5), transparent 31%),
+    linear-gradient(to bottom, rgba(153, 221, 255, 0.5), rgba(71, 124, 157, 0.2));
+  box-shadow:
+    inset 0 0 1.1rem rgba(206, 239, 255, 0.34),
+    0 0 0.7rem rgba(159, 225, 255, 0.25);
+  transform: translateX(-50%);
+}
+
+.ufo-alien {
+  position: absolute;
+  right: 0;
+  bottom: -4%;
+  left: 0;
+  display: block;
+  height: 92%;
+}
+
+.ufo-alien-head {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 3;
+  display: block;
+  width: 48%;
+  height: 58%;
+  border: 1px solid #396f38;
+  border-radius: 52% 52% 45% 45%;
+  background:
+    radial-gradient(circle at 38% 27%, rgba(255, 255, 255, 0.34), transparent 13%),
+    linear-gradient(145deg, #b4f282, #69b958 68%, #4d9649);
+  box-shadow: inset -0.3rem -0.25rem 0.55rem rgba(30, 92, 40, 0.3);
+  transform: translateX(-50%);
+}
+
+.ufo-alien-ear {
+  position: absolute;
+  top: 21%;
+  z-index: 2;
+  display: block;
+  width: 22%;
+  height: 18%;
+  border: 1px solid #396f38;
+  background: #72bd5c;
+}
+
+.ufo-alien-ear-left {
+  left: 15%;
+  border-radius: 80% 15% 80% 15%;
+  transform: rotate(20deg);
+}
+
+.ufo-alien-ear-right {
+  right: 15%;
+  border-radius: 15% 80% 15% 80%;
+  transform: rotate(-20deg);
+}
+
+.ufo-alien-eye {
+  position: absolute;
+  top: 34%;
+  display: flex;
+  width: 25%;
+  height: 32%;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 55% 45% 55% 45%;
+  background: #11131b;
+  transform: rotate(8deg);
+  animation: ufo-alien-blink 4.2s ease-in-out infinite;
+}
+
+.ufo-alien-eye-left {
+  left: 18%;
+}
+
+.ufo-alien-eye-right {
+  right: 18%;
+  transform: rotate(-8deg);
+}
+
+.ufo-alien-eye > span {
+  display: block;
+  width: 27%;
+  height: 27%;
+  border-radius: 50%;
+  background: #f4fff0;
+  box-shadow: 0 0 4px #fff;
+}
+
+.ufo-alien-judging .ufo-alien-eye > span {
+  animation: ufo-alien-look 0.64s steps(2, end) infinite;
+}
+
+.ufo-alien-eyebrow {
+  position: absolute;
+  top: 25%;
+  z-index: 4;
+  display: block;
+  width: 24%;
+  height: 2px;
+  border-radius: 999px;
+  background: #356d35;
+}
+
+.ufo-alien-eyebrow-left {
+  left: 18%;
+  transform: rotate(13deg);
+}
+
+.ufo-alien-eyebrow-right {
+  right: 18%;
+  transform: rotate(-13deg);
+}
+
+.ufo-alien-delighted .ufo-alien-eyebrow-left {
+  transform: rotate(-13deg) translateY(-2px);
+}
+
+.ufo-alien-delighted .ufo-alien-eyebrow-right {
+  transform: rotate(13deg) translateY(-2px);
+}
+
+.ufo-alien-mouth {
+  position: absolute;
+  bottom: 13%;
+  left: 50%;
+  display: block;
+  width: 22%;
+  height: 4%;
+  border-radius: 50%;
+  background: #28552d;
+  transform: translateX(-50%);
+}
+
+.ufo-alien-judging .ufo-alien-mouth {
+  width: 13%;
+  height: 11%;
+  border: 2px solid #28552d;
+  border-top: 0;
+  background: transparent;
+}
+
+.ufo-alien-delighted .ufo-alien-mouth {
+  width: 31%;
+  height: 18%;
+  border: 2px solid #28552d;
+  border-top: 0;
+  border-radius: 0 0 50% 50%;
+  background: #4e2437;
+}
+
+.ufo-alien-body {
+  position: absolute;
+  bottom: -3%;
+  left: 50%;
+  z-index: 2;
+  display: block;
+  width: 42%;
+  height: 45%;
+  border-radius: 42% 42% 12% 12%;
+  background: linear-gradient(to right, #273343, #455870 50%, #273343);
+  transform: translateX(-50%);
+}
+
+.ufo-alien-tie {
+  position: absolute;
+  top: 3%;
+  left: 50%;
+  display: block;
+  width: 16%;
+  height: 62%;
+  background: #ff5b73;
+  clip-path: polygon(50% 0, 100% 22%, 68% 100%, 32% 100%, 0 22%);
+  transform: translateX(-50%);
+}
+
+.ufo-alien-arm {
+  position: absolute;
+  top: 14%;
+  display: block;
+  width: 18%;
+  height: 75%;
+  border-radius: 999px;
+  background: #75c35d;
+  transform-origin: top center;
+}
+
+.ufo-alien-arm-left {
+  left: -5%;
+  transform: rotate(18deg);
+}
+
+.ufo-alien-arm-right {
+  right: -5%;
+  transform: rotate(-18deg);
+}
+
+.ufo-alien-delighted .ufo-alien-arm-left {
+  animation: ufo-alien-arm-left 0.45s ease-in-out infinite alternate;
+}
+
+.ufo-alien-delighted .ufo-alien-arm-right {
+  animation: ufo-alien-arm-right 0.45s ease-in-out infinite alternate;
+}
+
+.ufo-clipboard {
+  position: absolute;
+  right: 14%;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  width: 24%;
+  height: 36%;
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 12%;
+  padding: 11% 13%;
+  border: 1px solid #423523;
+  border-radius: 2px;
+  background: #e4c38c;
+  box-shadow: 1px 2px 2px rgba(0, 0, 0, 0.3);
+  transform: rotate(8deg);
+}
+
+.ufo-clipboard::before {
+  content: '';
+  position: absolute;
+  top: -9%;
+  left: 32%;
+  width: 36%;
+  height: 15%;
+  border-radius: 2px;
+  background: #858894;
+}
+
+.ufo-clipboard > span {
+  display: block;
+  height: 1px;
+  background: rgba(73, 56, 36, 0.55);
+}
+
+.ufo-saucer-rim {
+  position: absolute;
+  top: 49%;
+  left: 0;
+  z-index: 4;
+  display: flex;
+  width: 100%;
+  height: 31%;
+  box-sizing: border-box;
+  align-items: flex-end;
+  justify-content: space-evenly;
+  padding: 0 13% 5%;
+  border: 2px solid #34353e;
+  border-radius: 50%;
+  background:
+    linear-gradient(to bottom, #b9c0cc 0%, #676e7b 42%, #30343e 73%, #171922 100%);
+  box-shadow:
+    inset 0 4px 5px rgba(255, 255, 255, 0.3),
+    0 5px 7px rgba(0, 0, 0, 0.45);
+}
+
+.ufo-saucer-base {
+  position: absolute;
+  top: 68%;
+  left: 50%;
+  z-index: 3;
+  display: block;
+  width: 61%;
+  height: 20%;
+  border-radius: 0 0 50% 50%;
+  background: linear-gradient(to bottom, #3b414c, #171922);
+  box-shadow: 0 6px 9px rgba(0, 0, 0, 0.48);
+  transform: translateX(-50%);
+}
+
+.ufo-saucer-light {
+  display: block;
+  width: clamp(5px, 1.4cqw, 10px);
+  aspect-ratio: 1;
+  border: 1px solid #272730;
+  border-radius: 50%;
+  background: #f7e36e;
+  box-shadow: 0 0 6px #ffef81;
+  animation: ufo-running-lights 0.8s steps(2, end) infinite;
+}
+
+.ufo-saucer-light:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.ufo-saucer-light:nth-child(3) {
+  animation-delay: -0.32s;
+}
+
+.ufo-saucer-light:nth-child(4) {
+  animation-delay: -0.48s;
+}
+
+.ufo-saucer-light:nth-child(5) {
+  animation-delay: -0.64s;
+}
+
+.ufo-locked .ufo-saucer-light,
+.ufo-done .ufo-saucer-light {
+  background: #aefb92;
+  box-shadow: 0 0 8px #bfffaa, 0 0 15px rgba(174, 251, 146, 0.7);
+  animation-duration: 0.18s;
+}
+
+.ufo-hills {
+  position: absolute;
+  right: 0;
+  bottom: 8%;
+  left: 0;
+  z-index: 1;
+  display: block;
+  height: 22%;
+  overflow: hidden;
+}
+
+.ufo-hill {
+  position: absolute;
+  bottom: -58%;
+  display: block;
+  width: 65%;
+  height: 125%;
+  border-radius: 50% 50% 0 0;
+  background: #13172d;
+}
+
+.ufo-hill-left {
+  left: -17%;
+  transform: rotate(8deg);
+}
+
+.ufo-hill-right {
+  right: -13%;
+  background: #171a35;
+  transform: rotate(-7deg);
+}
+
+.ufo-city {
+  position: absolute;
+  right: 7%;
+  bottom: 0;
+  display: flex;
+  height: 54%;
+  align-items: flex-end;
+  gap: 3px;
+  opacity: 0.7;
+}
+
+.ufo-city > span {
+  display: block;
+  width: clamp(7px, 1.2cqw, 11px);
+  height: 45%;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 4px, #d6ca6e 4px 6px),
+    #0a0d1c;
+}
+
+.ufo-city > span:nth-child(2) {
+  height: 78%;
+}
+
+.ufo-city > span:nth-child(3) {
+  height: 57%;
+}
+
+.ufo-city > span:nth-child(4) {
+  height: 100%;
+}
+
+.ufo-city > span:nth-child(5) {
+  height: 68%;
+}
+
+.ufo-candidate-viewport {
+  position: absolute;
+  right: 0;
+  bottom: 6%;
+  left: 0;
+  z-index: 4;
+  display: block;
+  height: 29%;
+  pointer-events: none;
+}
+
+.ufo-candidate-viewport::before,
+.ufo-candidate-viewport::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 7;
+  width: 13%;
+  pointer-events: none;
+}
+
+.ufo-candidate-viewport::before {
+  left: 0;
+  background: linear-gradient(to right, #191735, transparent);
+}
+
+.ufo-candidate-viewport::after {
+  right: 0;
+  background: linear-gradient(to left, #191735, transparent);
+}
+
+.ufo-candidate-track {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  display: flex;
+  width: max-content;
+  align-items: flex-end;
+  gap: 8px;
+  transform: translateX(var(--ufo-track-offset));
+  transition: transform 0.5s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+
+.ufo-candidate {
+  position: relative;
+  display: flex;
+  width: 96px;
+  flex: 0 0 96px;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  transform-origin: 50% 100%;
+}
+
+.ufo-human {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: clamp(63px, 13cqh, 82px);
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.35));
+  transform-origin: 50% 100%;
+}
+
+.ufo-human-head {
+  position: absolute;
+  top: 4%;
+  left: 50%;
+  z-index: 3;
+  display: block;
+  width: 25px;
+  height: 27px;
+  border: 1px solid #8d5c3d;
+  border-radius: 46% 46% 50% 50%;
+  background: #d99a6c;
+  transform: translateX(-50%);
+}
+
+.ufo-human-hair {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 4;
+  display: block;
+  width: 27px;
+  height: 12px;
+  border-radius: 70% 45% 25% 15%;
+  background: hsl(var(--ufo-human-hue) 34% 24%);
+  transform: translateX(-50%) rotate(-4deg);
+}
+
+.ufo-human-eyes {
+  position: absolute;
+  top: 42%;
+  left: 28%;
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #2e201e;
+  box-shadow: 8px 0 #2e201e;
+}
+
+.ufo-human-mouth {
+  position: absolute;
+  bottom: 17%;
+  left: 50%;
+  display: block;
+  width: 7px;
+  height: 2px;
+  border-radius: 50%;
+  background: #7e403b;
+  transform: translateX(-50%);
+}
+
+.ufo-human-body {
+  position: absolute;
+  top: 35%;
+  bottom: 18%;
+  left: 50%;
+  z-index: 2;
+  display: block;
+  width: 29px;
+  border-radius: 9px 9px 4px 4px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 38%),
+    hsl(var(--ufo-human-hue) 48% 46%);
+  transform: translateX(-50%);
+}
+
+.ufo-human-arm {
+  position: absolute;
+  top: 6%;
+  display: block;
+  width: 7px;
+  height: 79%;
+  border-radius: 999px;
+  background: #d99a6c;
+  transform-origin: top center;
+}
+
+.ufo-human-arm-left {
+  left: -4px;
+  transform: rotate(8deg);
+}
+
+.ufo-human-arm-right {
+  right: -4px;
+  transform: rotate(-8deg);
+}
+
+.ufo-human-legs {
+  position: absolute;
+  bottom: 0;
+  left: 11px;
+  display: block;
+  width: 8px;
+  height: 26%;
+  border-radius: 0 0 4px 4px;
+  background: #1f2638;
+  box-shadow: 14px 0 #1f2638;
+}
+
+.ufo-nameplate {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid rgba(180, 186, 223, 0.22);
+  border-radius: 999px;
+  background: rgba(8, 9, 26, 0.76);
+  color: rgba(233, 235, 255, 0.72);
+  font-size: clamp(0.56rem, 1.35cqw, 0.72rem);
+  font-weight: 800;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color 0.2s, background 0.2s, color 0.2s, transform 0.2s;
+}
+
+.ufo-candidate-active {
+  z-index: 5;
+}
+
+.ufo-candidate-active .ufo-human {
+  animation: ufo-human-nervous 0.22s var(--ufo-human-delay) linear infinite;
+}
+
+.ufo-candidate-active .ufo-human-mouth {
+  width: 6px;
+  height: 6px;
+  background: #5a2831;
+}
+
+.ufo-candidate-active .ufo-nameplate {
+  border-color: rgba(198, 255, 174, 0.72);
+  background: rgba(73, 107, 72, 0.82);
+  color: #fff;
+  box-shadow: 0 0 0.8rem rgba(174, 255, 142, 0.42);
+  transform: scale(1.06);
+}
+
+.ufo-locked .ufo-candidate-active .ufo-human {
+  animation: ufo-human-panic 0.16s linear infinite;
+}
+
+.ufo-candidate-winner {
+  z-index: 5;
+  animation: ufo-abduct-candidate 1.55s 0.12s cubic-bezier(0.55, 0, 0.7, 0.5) forwards;
+}
+
+.ufo-ground {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  display: block;
+  height: 8%;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(174, 255, 142, 0.2), transparent 26%),
+    linear-gradient(to bottom, #12162d, #090b18);
+  box-shadow: inset 0 2px rgba(130, 124, 183, 0.16);
+}
+
+.ufo-result {
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  z-index: 8;
+  display: flex;
+  min-width: min(70%, 430px);
+  max-width: 88%;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  opacity: 0;
+  padding: 0.65rem 1.2rem;
+  border: 1px solid rgba(192, 255, 170, 0.55);
+  border-radius: 10px;
+  background: rgba(6, 13, 20, 0.91);
+  color: #b9ffa1;
+  box-shadow:
+    0 0 1.6rem rgba(158, 255, 126, 0.25),
+    inset 0 0 1rem rgba(158, 255, 126, 0.06);
+  font-family: var(--mono);
+  text-align: center;
+  text-transform: uppercase;
+  transform: translate(-50%, 16px) scale(0.9);
+  pointer-events: none;
+}
+
+.ufo-done .ufo-result {
+  animation: ufo-result-arrive 0.48s 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.ufo-result > span,
+.ufo-result > small {
+  color: rgba(213, 255, 198, 0.58);
+  font-size: clamp(0.46rem, 1.1cqw, 0.62rem);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.ufo-result > strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #fff;
+  font-family: inherit;
+  font-size: clamp(1.2rem, 4cqw, 2.2rem);
+  line-height: 1.05;
+  text-shadow: 0 0 0.8rem #7de75d;
+}
+
+.ufo-result > small {
+  color: rgba(219, 226, 235, 0.48);
+  font-size: clamp(0.4rem, 0.95cqw, 0.54rem);
+  letter-spacing: 0.08em;
+}
+
+.ufo-prompt {
+  min-height: 1.2rem;
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(0.68rem, 1.8vmin, 0.82rem);
+  font-weight: 600;
+  opacity: 0.68;
+  text-align: center;
+}
+
+@keyframes ufo-star-twinkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50% { opacity: 0.95; transform: scale(1.25); }
+}
+
+@keyframes ufo-bubble-pop {
+  from { opacity: 0; transform: translate(-5px, 6px) scale(0.82); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+
+@keyframes ufo-beam-search {
+  0% { opacity: 0.15; }
+  50% { opacity: 0.36; }
+  100% { opacity: 0.22; }
+}
+
+@keyframes ufo-beam-lock {
+  from { opacity: 0.62; filter: drop-shadow(0 0 0.5rem rgba(170, 255, 137, 0.45)); }
+  to { opacity: 0.94; filter: drop-shadow(0 0 1.25rem rgba(170, 255, 137, 0.85)); }
+}
+
+@keyframes ufo-particle-rise {
+  0% { bottom: 0; opacity: 0; transform: translateX(0) scale(0.7); }
+  15% { opacity: 0.9; }
+  80% { opacity: 0.7; }
+  100% { bottom: 96%; opacity: 0; transform: translateX(10px) scale(0.2); }
+}
+
+@keyframes ufo-craft-float {
+  0%, 100% { transform: translate(-50%, 0) rotate(-1deg); }
+  50% { transform: translate(-50%, -7px) rotate(1deg); }
+}
+
+@keyframes ufo-craft-scan {
+  0%, 100% { transform: translate(-50%, -2px) rotate(-1.2deg); }
+  50% { transform: translate(-50%, 2px) rotate(1.2deg); }
+}
+
+@keyframes ufo-craft-lock {
+  0%, 100% { transform: translate(-50%, 0) rotate(-0.7deg); }
+  50% { transform: translate(-50%, -1px) rotate(0.7deg); }
+}
+
+@keyframes ufo-craft-celebrate {
+  0% { transform: translate(-50%, 0) rotate(0); }
+  35% { transform: translate(-50%, -14px) rotate(-5deg); }
+  68% { transform: translate(-50%, 3px) rotate(4deg); }
+  100% { transform: translate(-50%, 0) rotate(0); }
+}
+
+@keyframes ufo-alien-blink {
+  0%, 44%, 48%, 100% { scale: 1 1; }
+  46% { scale: 1 0.08; }
+}
+
+@keyframes ufo-alien-look {
+  0% { transform: translateX(-35%); }
+  50% { transform: translateX(35%); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes ufo-alien-arm-left {
+  from { transform: rotate(18deg); }
+  to { transform: rotate(72deg); }
+}
+
+@keyframes ufo-alien-arm-right {
+  from { transform: rotate(-18deg); }
+  to { transform: rotate(-72deg); }
+}
+
+@keyframes ufo-running-lights {
+  0%, 49% { opacity: 0.28; }
+  50%, 100% { opacity: 1; }
+}
+
+@keyframes ufo-human-nervous {
+  0%, 100% { transform: translateX(-1px) rotate(-1deg); }
+  50% { transform: translateX(1px) rotate(1deg); }
+}
+
+@keyframes ufo-human-panic {
+  0%, 100% { transform: translateX(-2px) rotate(-3deg); }
+  50% { transform: translateX(2px) rotate(3deg); }
+}
+
+@keyframes ufo-abduct-candidate {
+  0% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+  45% { opacity: 1; transform: translateY(-95%) scale(0.83) rotate(-5deg); }
+  82% { opacity: 0.9; transform: translateY(-205%) scale(0.48) rotate(8deg); }
+  100% { opacity: 0; transform: translateY(-275%) scale(0.2) rotate(-14deg); }
+}
+
+@keyframes ufo-result-arrive {
+  from { opacity: 0; transform: translate(-50%, 16px) scale(0.9); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+@container (max-width: 540px) {
+  .ufo-agency-badge {
+    top: 3%;
+    font-size: 0.46rem;
+  }
+
+  .ufo-agency-badge > span {
+    display: none;
+  }
+
+  .ufo-speech {
+    top: 4%;
+    right: 3%;
+    left: auto;
+    max-width: 56%;
+    font-size: clamp(0.62rem, 3cqw, 0.78rem);
+  }
+
+  .ufo-craft {
+    top: 22%;
+    width: clamp(155px, 48cqw, 190px);
+  }
+
+  .ufo-beam {
+    top: 41%;
+  }
+
+  .ufo-moon {
+    top: 17%;
+    right: 3%;
+    opacity: 0.65;
+  }
+
+  .ufo-result {
+    min-width: 84%;
+    gap: 0.1rem;
+    padding: 0.45rem 0.65rem;
+  }
+
+  .ufo-result > strong {
+    font-size: clamp(0.86rem, 4cqw, 1.35rem);
+  }
+}
+
+@container (max-height: 390px) {
+  .ufo-scene {
+    min-height: 0;
+  }
+
+  .ufo-craft {
+    top: 17%;
+    width: clamp(145px, 31cqw, 205px);
+  }
+
+  .ufo-beam {
+    top: 40%;
+  }
+
+  .ufo-candidate-viewport {
+    height: 34%;
+  }
+
+  .ufo-speech {
+    top: 3%;
+    padding: 0.35rem 0.55rem;
+  }
+
+  .ufo-human {
+    height: 58px;
+  }
+
+  .ufo-result {
+    bottom: 10%;
+    padding: 0.4rem 0.85rem;
+  }
+}
+
 /* ── Vault ───────────────────────────────────────────────── */
 .vault-stage {
   container-type: size;
