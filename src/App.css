@@ -6,6 +6,11 @@
   padding: 0;
   overflow: hidden;
 }
+
+.loading-screen {
+  align-items: center;
+  justify-content: center;
+}
 .main-layout {
   display: flex;
   flex-direction: row;
@@ -81,6 +86,11 @@
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
+}
+
+.viz-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 /* ── Stage ───────────────────────────────────────────────── */
@@ -1402,6 +1412,12 @@
   margin: 0;
 }
 
+.login-error {
+  margin: 0 0 0.75rem;
+  color: #ef4444;
+  font-size: 0.85rem;
+}
+
 /* ── Room bar ────────────────────────────────────────────── */
 .room-bar {
   display: flex;
@@ -1419,6 +1435,15 @@
 
 .room-label strong {
   color: var(--text-h);
+}
+
+.sync-error {
+  padding: 0.5rem 1.5rem;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-size: 0.85rem;
+  text-align: center;
 }
 
 .room-leave-btn {

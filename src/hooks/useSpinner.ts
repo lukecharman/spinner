@@ -1,175 +1,231 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { ref, onValue, set } from 'firebase/database';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { onValue, ref, runTransaction, set } from 'firebase/database';
 import { db } from '../firebase';
+import {
+  addMemberToState,
+  createDefaultTeamState,
+  getRoomPaths,
+  parseTeamState,
+  removeMemberFromState,
+  replaceLastSelection,
+  resetCycleState,
+  selectNext,
+  serializeTeamState,
+  undoLastSelection,
+} from './spinnerState';
+import type { SpinSelection, TeamState } from './spinnerState';
 
-const TAB_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const TAB_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+let pickCounter = 0;
 
-export interface SpinEvent {
+export interface SpinEvent extends SpinSelection {
   targetRotation: number;
-  winner: string;
-  isSkip: boolean;
   tabId: string;
   timestamp: number;
 }
 
-export interface TeamState {
-  members: string[];
-  cycle: string[];
-  lastPicked: string | null;
+function createPickId(): string {
+  pickCounter += 1;
+  return `${TAB_ID}-${Date.now().toString(36)}-${pickCounter.toString(36)}`;
 }
 
-const DEFAULT_STATE: TeamState = {
-  members: ['Alice', 'Bob', 'Carol', 'Dan', 'Eve'],
-  cycle: [],
-  lastPicked: null,
-};
+function formatDatabaseError(action: string, error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  return `${action} failed: ${detail}`;
+}
 
-/** Validate / coerce data from Firebase into a safe TeamState */
-function parseState(data: unknown): TeamState | null {
-  if (!data || typeof data !== 'object') return null;
-  const d = data as Record<string, unknown>;
+function parseSpinEvent(data: unknown): SpinEvent | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const event = data as Record<string, unknown>;
 
-  if (d.members && Array.isArray(d.members)) {
-    return {
-      members: d.members as string[],
-      cycle: Array.isArray(d.cycle) ? d.cycle as string[] : [],
-      lastPicked: typeof d.lastPicked === 'string' ? d.lastPicked : null,
-    };
+  if (
+    typeof event.targetRotation !== 'number'
+    || !Number.isFinite(event.targetRotation)
+    || typeof event.winner !== 'string'
+    || !event.winner
+    || typeof event.pickId !== 'string'
+    || !event.pickId
+    || typeof event.tabId !== 'string'
+    || !event.tabId
+    || typeof event.timestamp !== 'number'
+    || !Number.isFinite(event.timestamp)
+  ) {
+    return null;
   }
 
-  return null;
+  return {
+    targetRotation: event.targetRotation,
+    winner: event.winner,
+    pickId: event.pickId,
+    tabId: event.tabId,
+    timestamp: event.timestamp,
+  };
 }
 
 export function useSpinner(roomId: string) {
-  const DB_PATH = `rooms/${roomId}/spinner-state`;
-  const SPIN_PATH = `rooms/${roomId}/spin-event`;
-
-  const [state, setState] = useState<TeamState>(DEFAULT_STATE);
+  const paths = getRoomPaths(roomId);
+  const [state, setState] = useState<TeamState>(createDefaultTeamState);
   const [loaded, setLoaded] = useState(false);
-  const stateRef = useRef(state);
-  const dbPathRef = useRef(DB_PATH);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
-    dbPathRef.current = DB_PATH;
-  }, [DB_PATH]);
+    const stateRef = ref(db, paths.state);
+    let initializationStarted = false;
 
-  function writeState(s: TeamState): void {
-    set(ref(db, dbPathRef.current), s);
-  }
-
-  // Real-time listener — syncs Firebase → local state
-  useEffect(() => {
-    const dbRef = ref(db, DB_PATH);
-    const unsub = onValue(dbRef, (snapshot) => {
+    const unsubscribe = onValue(stateRef, (snapshot) => {
       const data = snapshot.val();
-      const parsed = parseState(data);
-      if (parsed) {
-        setState(parsed);
-        stateRef.current = parsed;
-      } else if (!data) {
-        // First time — seed the database with defaults
-        writeState(DEFAULT_STATE);
+
+      if (data === null) {
+        const initialState = createDefaultTeamState();
+        setState(initialState);
+
+        if (!initializationStarted) {
+          initializationStarted = true;
+          void runTransaction(stateRef, current => (
+            current === null ? serializeTeamState(initialState) : undefined
+          )).catch(error => {
+            setSyncError(formatDatabaseError('Initializing the room', error));
+          });
+        }
+      } else {
+        const parsed = parseTeamState(data);
+        if (parsed) {
+          setState(parsed);
+        } else {
+          setSyncError('This room contains invalid data and was not overwritten.');
+        }
       }
+
+      setLoaded(true);
+    }, error => {
+      setSyncError(formatDatabaseError('Loading the room', error));
       setLoaded(true);
     });
-    return unsub;
-  }, [DB_PATH]);
 
-  const updateState = useCallback((updater: (prev: TeamState) => TeamState) => {
-    const prev = stateRef.current;
-    const next = updater(prev);
-    stateRef.current = next;
-    setState(next);
-    writeState(next);
-  }, []);
+    return unsubscribe;
+  }, [paths.state]);
 
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+  const runStateTransaction = useCallback(async (
+    action: string,
+    updater: (current: TeamState) => TeamState | null,
+  ): Promise<TeamState | null> => {
+    try {
+      const result = await runTransaction(ref(db, paths.state), currentData => {
+        const current = currentData === null
+          ? createDefaultTeamState()
+          : parseTeamState(currentData);
+        if (!current) return undefined;
 
-  const available = state.members.filter(m => !state.cycle.includes(m));
+        const next = updater(current);
+        return next ? serializeTeamState(next) : undefined;
+      });
 
-  // ── Member / pick operations ──
-  const pickNext = useCallback((): string | null => {
-    const t = stateRef.current;
-    const pool = t.members.filter(m => !t.cycle.includes(m));
-    if (pool.length === 0) return null;
-    return pool[Math.floor(Math.random() * pool.length)];
-  }, []);
+      if (!result.committed) return null;
 
-  const confirmPick = useCallback((winner: string) => {
-    updateState(t => {
-      const newCycle = [...t.cycle, winner];
-      const resetCycle = newCycle.length >= t.members.length ? [] : newCycle;
-      return { ...t, cycle: resetCycle, lastPicked: winner };
-    });
-  }, [updateState]);
+      const committed = parseTeamState(result.snapshot.val());
+      if (!committed) {
+        setSyncError(`${action} committed invalid room data.`);
+        return null;
+      }
 
-  const skipPick = useCallback((): string | null => {
-    // Undo the last confirmation before re-picking
-    const t = stateRef.current;
-    if (t.lastPicked && t.cycle.includes(t.lastPicked)) {
-      updateState(prev => ({
-        ...prev,
-        cycle: prev.cycle.filter(m => m !== prev.lastPicked),
-        lastPicked: null,
-      }));
+      setSyncError(null);
+      return committed;
+    } catch (error) {
+      setSyncError(formatDatabaseError(action, error));
+      return null;
     }
-    // Re-read after undo
-    const t2 = stateRef.current;
-    const pool = t2.members.filter(m => !t2.cycle.includes(m));
-    if (pool.length === 0) return null;
-    return pool[Math.floor(Math.random() * pool.length)];
-  }, [updateState]);
+  }, [paths.state]);
+
+  const available = state.members.filter(member => !state.cycle.includes(member));
+
+  const pickNext = useCallback(async (): Promise<SpinSelection | null> => {
+    const pickId = createPickId();
+    const committed = await runStateTransaction('Selecting the next host', current => (
+      selectNext(current, pickId)?.state ?? null
+    ));
+
+    if (!committed?.lastPicked || committed.lastPickId !== pickId) return null;
+    return { winner: committed.lastPicked, pickId };
+  }, [runStateTransaction]);
+
+  const respin = useCallback(async (
+    previous: SpinSelection,
+  ): Promise<SpinSelection | null> => {
+    const pickId = createPickId();
+    const committed = await runStateTransaction('Selecting a replacement host', current => (
+      replaceLastSelection(current, previous, pickId)?.state ?? null
+    ));
+
+    if (!committed?.lastPicked || committed.lastPickId !== pickId) return null;
+    return { winner: committed.lastPicked, pickId };
+  }, [runStateTransaction]);
+
+  const undoPick = useCallback(async (selection: SpinSelection): Promise<boolean> => {
+    const committed = await runStateTransaction('Undoing the selected host', current => (
+      undoLastSelection(current, selection)
+    ));
+    return committed !== null;
+  }, [runStateTransaction]);
 
   const addMember = useCallback((name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    updateState(t => {
-      if (t.members.includes(trimmed)) return t;
-      return { ...t, members: [...t.members, trimmed] };
-    });
-  }, [updateState]);
+    void runStateTransaction('Adding the team member', current => (
+      addMemberToState(current, name)
+    ));
+  }, [runStateTransaction]);
 
   const removeMember = useCallback((name: string) => {
-    updateState(t => ({
-      ...t,
-      members: t.members.filter(m => m !== name),
-      cycle: t.cycle.filter(m => m !== name),
-      lastPicked: t.lastPicked === name ? null : t.lastPicked,
-    }));
-  }, [updateState]);
+    void runStateTransaction('Removing the team member', current => (
+      removeMemberFromState(current, name)
+    ));
+  }, [runStateTransaction]);
 
   const resetCycle = useCallback(() => {
-    updateState(t => ({ ...t, cycle: [], lastPicked: null }));
-  }, [updateState]);
+    void runStateTransaction('Resetting the cycle', resetCycleState);
+  }, [runStateTransaction]);
 
-  // ── Spin event sync ──
   const [remoteSpinEvent, setRemoteSpinEvent] = useState<SpinEvent | null>(null);
-  const lastHandledSpin = useRef(0);
-  const [mountTime] = useState(() => Date.now());
+  const lastHandledSpinId = useRef<string | null>(null);
 
-  const broadcastSpin = useCallback((event: Omit<SpinEvent, 'tabId' | 'timestamp'>) => {
-    const full: SpinEvent = { ...event, tabId: TAB_ID, timestamp: Date.now() };
-    lastHandledSpin.current = full.timestamp;
-    set(ref(db, SPIN_PATH), full);
-  }, []);
+  const broadcastSpin = useCallback((
+    event: Omit<SpinEvent, 'tabId' | 'timestamp'>,
+  ) => {
+    const fullEvent: SpinEvent = {
+      ...event,
+      tabId: TAB_ID,
+      timestamp: Date.now(),
+    };
+    lastHandledSpinId.current = fullEvent.pickId;
+    void set(ref(db, paths.spin), fullEvent).catch(error => {
+      setSyncError(formatDatabaseError('Sharing the spin', error));
+    });
+  }, [paths.spin]);
 
   useEffect(() => {
-    const spinRef = ref(db, SPIN_PATH);
-    const unsub = onValue(spinRef, (snapshot) => {
-      const data = snapshot.val() as SpinEvent | null;
-      if (!data) return;
-      // Ignore our own spins and already-handled events
-      if (data.tabId === TAB_ID) return;
-      if (data.timestamp <= lastHandledSpin.current) return;
-      // Ignore stale events that existed before this tab loaded
-      if (data.timestamp < mountTime) return;
-      lastHandledSpin.current = data.timestamp;
-      setRemoteSpinEvent(data);
+    const spinRef = ref(db, paths.spin);
+    let receivedInitialValue = false;
+
+    return onValue(spinRef, (snapshot) => {
+      const event = parseSpinEvent(snapshot.val());
+
+      if (!receivedInitialValue) {
+        receivedInitialValue = true;
+        if (event) lastHandledSpinId.current = event.pickId;
+        return;
+      }
+
+      if (
+        !event
+        || event.tabId === TAB_ID
+        || event.pickId === lastHandledSpinId.current
+      ) {
+        return;
+      }
+      lastHandledSpinId.current = event.pickId;
+      setRemoteSpinEvent(event);
+    }, error => {
+      setSyncError(formatDatabaseError('Listening for team spins', error));
     });
-    return unsub;
-  }, [SPIN_PATH]);
+  }, [paths.spin]);
 
   const clearRemoteSpin = useCallback(() => {
     setRemoteSpinEvent(null);
@@ -179,9 +235,10 @@ export function useSpinner(roomId: string) {
     state,
     available,
     loaded,
+    syncError,
     pickNext,
-    confirmPick,
-    skipPick,
+    respin,
+    undoPick,
     addMember,
     removeMember,
     resetCycle,
@@ -190,3 +247,5 @@ export function useSpinner(roomId: string) {
     clearRemoteSpin,
   };
 }
+
+export type { SpinSelection, TeamState } from './spinnerState';

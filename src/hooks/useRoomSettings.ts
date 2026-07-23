@@ -19,17 +19,27 @@ interface RoomSettings {
   accentColor: AccentColor;
 }
 
+function isAccentColor(value: unknown): value is AccentColor {
+  return ACCENT_COLORS.some(color => color.id === value);
+}
+
 export function useRoomSettings(roomId: string) {
   const SETTINGS_PATH = `rooms/${roomId}/settings`;
   const [accentColor, setAccentColor] = useState<AccentColor>('purple');
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     const settingsRef = ref(db, SETTINGS_PATH);
     const unsub = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val() as RoomSettings | null;
-      if (data?.accentColor) {
+      if (isAccentColor(data?.accentColor)) {
         setAccentColor(data.accentColor);
+        setSyncError(null);
+      } else if (data !== null) {
+        setSyncError('This room has an invalid accent color setting.');
       }
+    }, error => {
+      setSyncError(`Loading room settings failed: ${error.message}`);
     });
     return unsub;
   }, [SETTINGS_PATH]);
@@ -40,19 +50,29 @@ export function useRoomSettings(roomId: string) {
   }, [accentColor]);
 
   const changeAccentColor = useCallback((color: AccentColor) => {
-    set(ref(db, SETTINGS_PATH), { accentColor: color });
+    void set(ref(db, SETTINGS_PATH), { accentColor: color }).catch(error => {
+      setSyncError(`Saving the accent color failed: ${error.message}`);
+    });
   }, [SETTINGS_PATH]);
 
-  return { accentColor, changeAccentColor };
+  return { accentColor, changeAccentColor, syncError };
 }
 
 export type ThemeSetting = 'dark' | 'light' | 'system';
 export type Theme = 'dark' | 'light';
 
+function loadThemeSetting(): ThemeSetting {
+  try {
+    const saved = localStorage.getItem('spinner-theme');
+    if (saved === 'dark' || saved === 'light' || saved === 'system') return saved;
+  } catch (error) {
+    console.warn('Unable to read the saved theme.', error);
+  }
+  return 'dark';
+}
+
 export function useTheme() {
-  const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => {
-    return (localStorage.getItem('spinner-theme') as ThemeSetting) || 'dark';
-  });
+  const [themeSetting, setThemeSetting] = useState<ThemeSetting>(loadThemeSetting);
 
   const [systemPrefersDark, setSystemPrefersDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches,
@@ -64,7 +84,11 @@ export function useTheme() {
   // Apply theme to the document and persist the user's choice
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', resolved);
-    localStorage.setItem('spinner-theme', themeSetting);
+    try {
+      localStorage.setItem('spinner-theme', themeSetting);
+    } catch (error) {
+      console.warn('Unable to save the selected theme.', error);
+    }
   }, [resolved, themeSetting]);
 
   // Track OS theme changes (used when in 'system' mode)
