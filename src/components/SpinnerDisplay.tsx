@@ -19,6 +19,8 @@ const VIZ_LABELS: Record<Visualization, string> = {
 
 /** Visualizations hidden from the UI (still functional, just not selectable) */
 const HIDDEN_VIZ: Set<Visualization> = new Set(['8ball']);
+const VISIBLE_VISUALIZATIONS = (Object.keys(VIZ_LABELS) as Visualization[])
+  .filter(visualization => !HIDDEN_VIZ.has(visualization));
 
 function loadVisualization(): Visualization {
   try {
@@ -110,6 +112,12 @@ export function SpinnerDisplay({ members, activePickId, onSpin, onRespin, onUndo
     setPhase('idle');
     setSelection(null);
   }, [clearTimeouts, displayedPhase]);
+
+  const randomizeViz = useCallback(() => {
+    const alternatives = VISIBLE_VISUALIZATIONS.filter(visualization => visualization !== viz);
+    const next = alternatives[Math.floor(Math.random() * alternatives.length)];
+    if (next) switchViz(next);
+  }, [switchViz, viz]);
 
   useEffect(() => () => { timeoutsRef.current.forEach(clearTimeout); }, []);
 
@@ -271,7 +279,16 @@ export function SpinnerDisplay({ members, activePickId, onSpin, onRespin, onUndo
       <p className="spinner-subtitle">"{subtitle}"</p>
 
       <div className="viz-switcher">
-        {(Object.keys(VIZ_LABELS) as Visualization[]).filter(v => !HIDDEN_VIZ.has(v)).map(v => (
+        <button
+          className="viz-btn"
+          onClick={randomizeViz}
+          disabled={displayedPhase === 'spinning'}
+          aria-label="Pick a random visualization"
+          title="Pick a random visualization"
+        >
+          🎲 Random
+        </button>
+        {VISIBLE_VISUALIZATIONS.map(v => (
           <button
             key={v}
             className={`viz-btn ${v === viz ? 'active' : ''}`}
